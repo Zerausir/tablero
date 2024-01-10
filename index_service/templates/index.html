@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Panel de Opciones</title>
+</head>
+<body>
+    <h1>Panel de Opciones</h1>
+    <ul>
+        {% for option in options %}
+            <li><a href="/{{ option|slugify }}/">{{ option }}</a></li>
+        {% endfor %}
+    </ul>
+</body>
+</html>
