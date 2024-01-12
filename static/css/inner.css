@@ -1,0 +1,9 @@
+/* inner.css */
+body {
+    margin: 0;
+    overflow: hidden; /* Optional: if you want to remove scrolling inside iframe */
+}
+
+.dash-graph {
+    aspect-ratio: 16 / 9;
+}

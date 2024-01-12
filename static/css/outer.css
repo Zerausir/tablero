@@ -1,0 +1,6 @@
+/* outer.css */
+iframe {
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    border: none; /* Optional: remove iframe border */
+}
