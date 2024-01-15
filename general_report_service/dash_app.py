@@ -28,7 +28,7 @@ app.layout = html.Div([
     ),
     dcc.Dropdown(
         id='city-dropdown',
-        options=[{'label': city, 'value': city} for city in json.loads(settings.CITIES)],
+        options=[{'label': ciudad, 'value': ciudad} for ciudad in json.loads(settings.CITIES)],
         placeholder="Selecciona una ciudad",
         style={'margin': '10px'}
     ),
@@ -47,32 +47,38 @@ app.layout = html.Div([
 # Callback for updating tables
 @app.callback(
     Output('data-tables-container', 'children'),
-    [Input('date-picker-range', 'fecha_inicio'),
-     Input('date-picker-range', 'fecha_fin'),
-     Input('checkbox', 'value')]
+    [Input('date-picker-range', 'start_date'),
+     Input('date-picker-range', 'end_date'),
+     Input('city-dropdown', 'value')]
 )
-def update_tables(start_date, end_date, city):
-    if start_date is not None and end_date is not None and city is not None:
-        # Prepare selected options
+def update_tables(fecha_inicio, fecha_fin, ciudad):
+    if fecha_inicio is not None and fecha_fin is not None and ciudad is not None:
         selected_options = {
-            'city': city,
-            'start_date': datetime.datetime.strptime(start_date, "%Y-%m-%d"),
-            'end_date': datetime.datetime.strptime(end_date, "%Y-%m-%d")
+            'start_date': fecha_inicio,
+            'end_date': fecha_fin,
+            'city': ciudad,
         }
-
-        # Use the customize_data function to get the DataFrames
         df_original1, df_original2, df_original3 = customize_data(selected_options)
-
-        # Create Dash DataTables for each DataFrame
+        df_original1 = convert_pivot_timestamps_to_strings(df_original1)
+        df_original2 = convert_pivot_timestamps_to_strings(df_original2)
+        df_original3 = convert_pivot_timestamps_to_strings(df_original3)
+        # Create Dash DataTables for each DataFrame with scrolling enabled
         table1 = dash_table.DataTable(df_original1.to_dict('records'),
-                                      [{"name": i, "id": i} for i in df_original1.columns])
+                                      [{"name": i, "id": i} for i in df_original1.columns],
+                                      style_table={'overflowX': 'auto', 'maxHeight': '300px'})
         table2 = dash_table.DataTable(df_original2.to_dict('records'),
-                                      [{"name": i, "id": i} for i in df_original2.columns])
+                                      [{"name": i, "id": i} for i in df_original2.columns],
+                                      style_table={'overflowX': 'auto', 'maxHeight': '300px'})
         table3 = dash_table.DataTable(df_original3.to_dict('records'),
-                                      [{"name": i, "id": i} for i in df_original3.columns])
+                                      [{"name": i, "id": i} for i in df_original3.columns],
+                                      style_table={'overflowX': 'auto', 'maxHeight': '300px'})
 
-        # Return the tables in a Div
-        return html.Div([table1, html.Br(), table2, html.Br(), table3])
+        # Return the tables in separate tabs
+        return dcc.Tabs([
+            dcc.Tab(label='Radiodifusión FM', children=[table1]),
+            dcc.Tab(label='Televisión', children=[table2]),
+            dcc.Tab(label='Radiodifusión AM', children=[table3]),
+        ])
 
     return html.Div("Please select a start date, end date, and a city.")
 
@@ -91,7 +97,7 @@ def get_options(self) -> dict:
     return get_options_from_index_service_api()
 
 
-def customize_data(ciudad: str, fecha_inicio: str, fecha_fin: str) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+def customize_data(selected_options: dict) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """
     Customize data based on selected city and date range.
 
@@ -103,6 +109,9 @@ def customize_data(ciudad: str, fecha_inicio: str, fecha_fin: str) -> tuple[pd.D
     Returns:
         Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]: Customized dataframes.
     """
+    ciudad = selected_options['city']
+    fecha_inicio = selected_options['start_date']
+    fecha_fin = selected_options['end_date']
 
     ciu, autori, sheet_name1, sheet_name2, *rest = CITIES1.get(ciudad, (None, None, None, None, None))
     sheet_name3 = rest[0] if rest else None  # Assign sheet_name3 only if rest is not empty
@@ -116,7 +125,7 @@ def customize_data(ciudad: str, fecha_inicio: str, fecha_fin: str) -> tuple[pd.D
 
     month_year = generate_month_year_vector(Year1, Year2)
 
-    df_d1, df_d2, df_d3 = read_data_files(ciu, month_year, sheet_name1, sheet_name2,
+    df_d1, df_d2, df_d3 = read_data_files(selected_options, ciu, month_year, sheet_name1, sheet_name2,
                                           sheet_name3)
 
     dfau = pd.concat([read_and_process_aut(settings.FILE_AUT_SUS, settings.COLUMNS_AUT, 'S'),
@@ -141,7 +150,8 @@ def customize_data(ciudad: str, fecha_inicio: str, fecha_fin: str) -> tuple[pd.D
     else:
         df_original3 = pd.DataFrame()
 
-    return df_original1, df_original2, df_original3
+    return convert_pivot_timestamps_to_strings(df_original1), convert_pivot_timestamps_to_strings(
+        df_original2), convert_pivot_timestamps_to_strings(df_original3)
 
 
 def translate_month(month: str) -> str:
@@ -192,11 +202,12 @@ def read_data_files(selected_options: dict, ciu: str, month_year: list[str], she
     Returns:
         Tuple[np.ndarray, np.ndarray, np.ndarray]: Data arrays within the selected date range.
     """
+    # Convert start and end dates from string to datetime objects
+    start_date = datetime.datetime.strptime(selected_options['start_date'], '%Y-%m-%d')
+    end_date = datetime.datetime.strptime(selected_options['end_date'], '%Y-%m-%d')
     # Calculate the start and end indices for the month_year based on selected_options
-    start_idx = month_year.index(
-        f"{translate_month(selected_options['start_date'].strftime('%B'))}_{selected_options['start_date'].year}")
-    end_idx = month_year.index(
-        f"{translate_month(selected_options['end_date'].strftime('%B'))}_{selected_options['end_date'].year}")
+    start_idx = month_year.index(f"{translate_month(start_date.strftime('%B'))}_{start_date.year}")
+    end_idx = month_year.index(f"{translate_month(end_date.strftime('%B'))}_{end_date.year}")
 
     # Initialize empty lists to store data
     df_d1, df_d2, df_d3 = [], [], []
@@ -498,7 +509,7 @@ def simplify_fm_broadcasting(df9: pd.DataFrame, dfau1: pd.DataFrame, autori: str
     df_final3 = create_pivot_table(df11, [pd.Grouper(key='Tiempo', freq='D')],
                                    ['Level (dBµV/m)', 'Bandwidth (Hz)', 'Fecha_fin'],
                                    ['Frecuencia (Hz)', 'Estación', 'Potencia', 'BW Asignado'],
-                                   {'Level (dBµV/m)': max, 'Bandwidth (Hz)': np.average, 'Fecha_fin': max})
+                                   {'Level (dBµV/m)': 'max', 'Bandwidth (Hz)': np.average, 'Fecha_fin': 'max'})
     return df_final3
 
 
@@ -518,7 +529,7 @@ def simplify_tv_broadcasting(df10: pd.DataFrame, dfau1: pd.DataFrame, autori: st
     df12 = merge_authorization_with_data(df12_authorization, df10, ['Tiempo', 'Canal (Número)'])
     df_final4 = create_pivot_table(df12, [pd.Grouper(key='Tiempo', freq='D')], ['Level (dBµV/m)', 'Fecha_fin'],
                                    ['Frecuencia (Hz)', 'Estación', 'Canal (Número)', 'Analógico/Digital'],
-                                   {'Level (dBµV/m)': max, 'Fecha_fin': max})
+                                   {'Level (dBµV/m)': 'max', 'Fecha_fin': 'max'})
     return df_final4
 
 
@@ -539,8 +550,54 @@ def simplify_am_broadcasting(df17: pd.DataFrame, dfau1: pd.DataFrame, autori: st
     df_final8 = create_pivot_table(df18, [pd.Grouper(key='Tiempo', freq='D')],
                                    ['Level (dBµV/m)', 'Bandwidth (Hz)', 'Fecha_fin'],
                                    ['Frecuencia (Hz)', 'Estación'],
-                                   {'Level (dBµV/m)': max, 'Bandwidth (Hz)': np.average, 'Fecha_fin': max})
+                                   {'Level (dBµV/m)': 'max', 'Bandwidth (Hz)': np.average, 'Fecha_fin': 'max'})
     return df_final8
+
+
+def convert_pivot_timestamps_to_strings(df):
+    # Convert MultiIndex column headers
+    if isinstance(df.columns, pd.MultiIndex):
+        df.columns = df.columns.map(
+            lambda x: [y.strftime('%Y-%m-%d %H:%M:%S') if isinstance(y, pd.Timestamp) else y for y in x])
+    else:
+        df.columns = [x.strftime('%Y-%m-%d %H:%M:%S') if isinstance(x, pd.Timestamp) else x for x in df.columns]
+
+    # Convert MultiIndex index
+    if isinstance(df.index, pd.MultiIndex):
+        df.index = df.index.map(
+            lambda x: [y.strftime('%Y-%m-%d %H:%M:%S') if isinstance(y, pd.Timestamp) else y for y in x])
+    else:
+        df.index = [x.strftime('%Y-%m-%d %H:%M:%S') if isinstance(x, pd.Timestamp) else x for x in df.index]
+
+    # Convert Timestamps in DataFrame data
+    for column in df:
+        if df[column].apply(lambda x: isinstance(x, pd.Timestamp)).any():
+            df[column] = df[column].apply(
+                lambda x: x.strftime('%Y-%m-%d %H:%M:%S') if isinstance(x, pd.Timestamp) else x)
+
+    return df
+
+
+def convert_pivot_timestamps_to_strings(df):
+    # Check if 'Tiempo' is in the columns of the DataFrame
+    if 'Tiempo' in df.columns:
+        # Convert 'Tiempo' to string format only with year, month, and day
+        df['Tiempo'] = df['Tiempo'].dt.strftime('%Y-%m-%d')
+
+    # Convert MultiIndex column headers
+    if isinstance(df.columns, pd.MultiIndex):
+        df.columns = df.columns.map(
+            lambda x: [(y.strftime('%Y-%m-%d') if isinstance(y, pd.Timestamp) else y) for y in x])
+    else:
+        df.columns = [x.strftime('%Y-%m-%d') if isinstance(x, pd.Timestamp) else x for x in df.columns]
+
+    # Convert MultiIndex index
+    if isinstance(df.index, pd.MultiIndex):
+        df.index = df.index.map(lambda x: [(y.strftime('%Y-%m-%d') if isinstance(y, pd.Timestamp) else y) for y in x])
+    else:
+        df.index = [x.strftime('%Y-%m-%d') if isinstance(x, pd.Timestamp) else x for x in df.index]
+
+    return df
 
 
 # Run the app
