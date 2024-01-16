@@ -2,6 +2,7 @@ import datetime
 import json
 import numpy as np
 import pandas as pd
+import dask.dataframe as dd
 
 from django.conf import settings
 from pandas import DataFrame
@@ -40,7 +41,12 @@ app.layout = html.Div([
         value=[],
         style={'margin': '10px'}
     ),
-    html.Div(id='data-tables-container', style={'margin': '10px'})
+    dcc.Loading(
+        id="loading-1",
+        type="default",  # Options: "graph", "cube", "circle", "dot", or "default"
+        children=html.Div(id='data-tables-container'),
+        style={'margin': '10px'}
+    )
 ])
 
 
@@ -62,16 +68,31 @@ def update_tables(fecha_inicio, fecha_fin, ciudad):
         df_original1 = convert_pivot_timestamps_to_strings(df_original1)
         df_original2 = convert_pivot_timestamps_to_strings(df_original2)
         df_original3 = convert_pivot_timestamps_to_strings(df_original3)
+        # Define the columns with filtering options for each table
+        columns1 = [
+            {"name": i, "id": i, "type": "text", "filter_options": {"case": "insensitive"}} if i in ["Tiempo",
+                                                                                                     "Estación"]
+            else {"name": i, "id": i, "type": "numeric"} if i == "Frecuencia (Hz)"
+            else {"name": i, "id": i}
+            for i in df_original1.columns
+        ]
+
+        columns2 = columns1  # Assuming the same columns for simplicity; adjust if necessary
+        columns3 = columns1  # Assuming the same columns for simplicity; adjust if necessary
+
         # Create Dash DataTables for each DataFrame with scrolling enabled
         table1 = dash_table.DataTable(df_original1.to_dict('records'),
-                                      [{"name": i, "id": i} for i in df_original1.columns],
-                                      style_table={'overflowX': 'auto', 'maxHeight': '300px'})
+                                      columns=columns1,
+                                      style_table={'overflowX': 'auto', 'maxHeight': '300px'},
+                                      filter_action='native')
         table2 = dash_table.DataTable(df_original2.to_dict('records'),
-                                      [{"name": i, "id": i} for i in df_original2.columns],
-                                      style_table={'overflowX': 'auto', 'maxHeight': '300px'})
+                                      columns=columns2,
+                                      style_table={'overflowX': 'auto', 'maxHeight': '300px'},
+                                      filter_action='native')
         table3 = dash_table.DataTable(df_original3.to_dict('records'),
-                                      [{"name": i, "id": i} for i in df_original3.columns],
-                                      style_table={'overflowX': 'auto', 'maxHeight': '300px'})
+                                      columns=columns3,
+                                      style_table={'overflowX': 'auto', 'maxHeight': '300px'},
+                                      filter_action='native')
 
         # Return the tables in separate tabs
         return dcc.Tabs([
@@ -150,8 +171,10 @@ def customize_data(selected_options: dict) -> tuple[pd.DataFrame, pd.DataFrame, 
     else:
         df_original3 = pd.DataFrame()
 
-    return convert_pivot_timestamps_to_strings(df_original1), convert_pivot_timestamps_to_strings(
-        df_original2), convert_pivot_timestamps_to_strings(df_original3)
+    # return convert_pivot_timestamps_to_strings(df_original1), convert_pivot_timestamps_to_strings(
+    #     df_original2), convert_pivot_timestamps_to_strings(df_original3)
+
+    return df_original1, df_original2, df_original3
 
 
 def translate_month(month: str) -> str:
@@ -222,29 +245,28 @@ def read_data_files(selected_options: dict, ciu: str, month_year: list[str], she
                 read_csv_file(f'{settings.SERVER_ROUTE}/{ciu}/AM_{ciu}_{mes}.csv', settings.COLUMNS_AM))
 
     # Concatenate the data and handle None for df_d3
-    df_d1 = np.concatenate(df_d1) if df_d1 else np.array([])
-    df_d2 = np.concatenate(df_d2) if df_d2 else np.array([])
-    df_d3 = np.concatenate(df_d3) if df_d3 else None
+    df_d1 = dd.concat(df_d1).compute() if df_d1 else dd.from_array(np.array([]))
+    df_d2 = dd.concat(df_d2).compute() if df_d2 else dd.from_array(np.array([]))
+    df_d3 = dd.concat(df_d3).compute() if df_d3 else None
 
     return df_d1, df_d2, df_d3
 
 
-def read_csv_file(file_path: str, columns: list[str]) -> np.ndarray:
+def read_csv_file(file_path: str, columns: list[str]) -> dd.DataFrame:
     """
-    Read CSV file and return data as a NumPy array.
+    Read CSV file using Dask and return data as a Dask DataFrame.
 
     Args:
         file_path (str): Path to the CSV file.
         columns (List[str]): List of columns to be read.
 
     Returns:
-        np.ndarray: Data array.
+        dd.DataFrame: Dask DataFrame containing the data.
     """
     try:
-        return pd.read_csv(file_path, engine='python', skipinitialspace=True, usecols=columns,
-                           encoding='unicode_escape').to_numpy()
+        return dd.read_csv(file_path, usecols=columns, assume_missing=True, encoding='latin1')
     except IOError:
-        return np.full((1, len(columns)), np.nan)
+        return dd.from_pandas(pd.DataFrame(np.full((1, len(columns)), np.nan), columns=columns), npartitions=1)
 
 
 def read_and_fill_excel(file_path: str, sheet_name: str, fill_value: str = '-') -> pd.DataFrame:
@@ -275,8 +297,10 @@ def clean_data(start_date: str, end_date: str, df_primary: pd.DataFrame, sheet_n
     Returns:
         pd.DataFrame: Cleaned DataFrame.
     """
-    df7 = pd.read_excel(f'{settings.SERVER_ROUTE}/{settings.FILE_ESTACIONES}', sheet_name=sheet_name)
-    df7 = df7.fillna('-')
+    df_tx = pd.read_excel(f'{settings.SERVER_ROUTE}/{settings.FILE_ESTACIONES}', sheet_name=sheet_name).fillna('-')
+    df_tx['Frecuencia (Hz)'] = df_tx['Frecuencia (Hz)'].astype('float64')
+    # Convert the Pandas DataFrame to a Dask DataFrame
+    df_tx = dd.from_pandas(df_tx, npartitions=5)  # Adjust npartitions based on your dataset size and memory
 
     add_string1 = ' 00:00:01'
     add_string2 = ' 23:59:59'
@@ -296,18 +320,21 @@ def clean_data(start_date: str, end_date: str, df_primary: pd.DataFrame, sheet_n
     start_date = convert(start_date)
     end_date = convert(end_date)
 
-    df3 = pd.DataFrame(
+    df_missing_dates = pd.DataFrame(
         [(t, f) for t in pd.date_range(start=start_date, end=end_date)
-         for f in df7['Frecuencia (Hz)'].tolist()],
+         for f in df_tx['Frecuencia (Hz)'].compute().tolist()],
         columns=('Tiempo', 'Frecuencia (Hz)'))
 
-    df5 = pd.concat([df3, df_primary])
+    df_missing_dates['Frecuencia (Hz)'] = df_missing_dates['Frecuencia (Hz)'].astype('float64')
+    df_primary['Frecuencia (Hz)'] = df_primary['Frecuencia (Hz)'].astype('float64')
 
-    df9 = df5.merge(df7, how='right', on='Frecuencia (Hz)')
+    df_full_dates = dd.concat([df_missing_dates, df_primary])
 
-    df9 = df9[(df9.Tiempo >= start_date) & (df9.Tiempo <= end_date)].fillna(0)
+    df_complete = df_full_dates.merge(df_tx, how='right', on='Frecuencia (Hz)').compute()
 
-    return df9
+    df_complete = df_complete[(df_complete.Tiempo >= start_date) & (df_complete.Tiempo <= end_date)].fillna(0)
+
+    return df_complete
 
 
 def read_and_process_aut(file_name: str, column_names: list[str], kind: str) -> pd.DataFrame:
@@ -358,6 +385,7 @@ def read_and_process_aut(file_name: str, column_names: list[str], kind: str) -> 
 
     # Create a new column in the df dataframe using the last function def freq(row)
     df['freq'] = df.apply(lambda row: freq(row), axis=1)
+    df['freq'] = df['freq'].astype('float64')
     df = df.drop(columns=['freq1'])
 
     return df
@@ -381,6 +409,7 @@ def process_authorization_am_fm_df(dfau: pd.DataFrame, freq_range_start: int, fr
     dfau_filtered = dfau_filtered.rename(columns={'freq': 'Frecuencia (Hz)', 'Fecha_inicio': 'Tiempo'})
     dfau_filtered = dfau_filtered.loc[dfau_filtered['ciu'] == city]
     dfau_filtered = dfau_filtered.drop(columns=['est'])
+    dfau_filtered['Frecuencia (Hz)'] = dfau_filtered['Frecuencia (Hz)'].astype('float64')
 
     result_df = []
     for index, row in dfau_filtered.iterrows():
@@ -412,6 +441,7 @@ def process_authorization_tv_df(dfau: pd.DataFrame, freq_range_start: int, freq_
     dfau_filtered = dfau_filtered.rename(columns={'freq': 'Canal (Número)', 'Fecha_inicio': 'Tiempo'})
     dfau_filtered = dfau_filtered.loc[dfau_filtered['ciu'] == city]
     dfau_filtered = dfau_filtered.drop(columns=['est'])
+    dfau_filtered['Canal (Número)'] = dfau_filtered['Canal (Número)'].astype('float64')
 
     result_df = []
     for index, row in dfau_filtered.iterrows():
@@ -506,10 +536,11 @@ def simplify_fm_broadcasting(df9: pd.DataFrame, dfau1: pd.DataFrame, autori: str
     """
     df11_authorization = process_authorization_am_fm_df(dfau1, 87700000, 108100000, autori)
     df11 = merge_authorization_with_data(df11_authorization, df9, ['Tiempo', 'Frecuencia (Hz)'])
-    df_final3 = create_pivot_table(df11, [pd.Grouper(key='Tiempo', freq='D')],
-                                   ['Level (dBµV/m)', 'Bandwidth (Hz)', 'Fecha_fin'],
-                                   ['Frecuencia (Hz)', 'Estación', 'Potencia', 'BW Asignado'],
-                                   {'Level (dBµV/m)': 'max', 'Bandwidth (Hz)': np.average, 'Fecha_fin': 'max'})
+    df_final3 = df11.groupby(['Frecuencia (Hz)', 'Estación', pd.Grouper(key='Tiempo', freq='D')]).agg(
+        {'Level (dBµV/m)': 'max', 'Bandwidth (Hz)': np.average, 'Fecha_fin': 'max'})
+    df_final3 = df_final3.reset_index().sort_values(by='Tiempo', ascending=True)
+    new_order = ['Tiempo', 'Frecuencia (Hz)', 'Estación', 'Level (dBµV/m)', 'Bandwidth (Hz)', 'Fecha_fin']
+    df_final3 = df_final3[new_order]
     return df_final3
 
 
@@ -527,9 +558,13 @@ def simplify_tv_broadcasting(df10: pd.DataFrame, dfau1: pd.DataFrame, autori: st
     """
     df12_authorization = process_authorization_tv_df(dfau1, 2, 51, autori)
     df12 = merge_authorization_with_data(df12_authorization, df10, ['Tiempo', 'Canal (Número)'])
-    df_final4 = create_pivot_table(df12, [pd.Grouper(key='Tiempo', freq='D')], ['Level (dBµV/m)', 'Fecha_fin'],
-                                   ['Frecuencia (Hz)', 'Estación', 'Canal (Número)', 'Analógico/Digital'],
-                                   {'Level (dBµV/m)': 'max', 'Fecha_fin': 'max'})
+    df_final4 = df12.groupby(
+        ['Frecuencia (Hz)', 'Estación', 'Canal (Número)', 'Analógico/Digital', pd.Grouper(key='Tiempo', freq='D')]).agg(
+        {'Level (dBµV/m)': 'max', 'Fecha_fin': 'max'})
+    df_final4 = df_final4.reset_index().sort_values(by='Tiempo', ascending=True)
+    new_order = ['Tiempo', 'Frecuencia (Hz)', 'Estación', 'Canal (Número)', 'Analógico/Digital', 'Level (dBµV/m)',
+                 'Fecha_fin']
+    df_final4 = df_final4[new_order]
     return df_final4
 
 
@@ -547,10 +582,11 @@ def simplify_am_broadcasting(df17: pd.DataFrame, dfau1: pd.DataFrame, autori: st
     """
     df18_authorization = process_authorization_am_fm_df(dfau1, 570000, 1590000, autori)
     df18 = merge_authorization_with_data(df18_authorization, df17, ['Tiempo', 'Frecuencia (Hz)'])
-    df_final8 = create_pivot_table(df18, [pd.Grouper(key='Tiempo', freq='D')],
-                                   ['Level (dBµV/m)', 'Bandwidth (Hz)', 'Fecha_fin'],
-                                   ['Frecuencia (Hz)', 'Estación'],
-                                   {'Level (dBµV/m)': 'max', 'Bandwidth (Hz)': np.average, 'Fecha_fin': 'max'})
+    df_final8 = df18.groupby(['Frecuencia (Hz)', 'Estación', pd.Grouper(key='Tiempo', freq='D')]).agg(
+        {'Level (dBµV/m)': 'max', 'Bandwidth (Hz)': np.average, 'Fecha_fin': 'max'})
+    df_final8 = df_final8.reset_index().sort_values(by='Tiempo', ascending=True)
+    new_order = ['Tiempo', 'Frecuencia (Hz)', 'Estación', 'Level (dBµV/m)', 'Bandwidth (Hz)', 'Fecha_fin']
+    df_final8 = df_final8[new_order]
     return df_final8
 
 
