@@ -46,18 +46,65 @@ app.layout = html.Div([
         type="default",  # Options: "graph", "cube", "circle", "dot", or "default"
         children=html.Div(id='data-tables-container'),
         style={'margin': '10px'}
-    )
+    ),
+    dcc.Store(id='store-df-original1'),
+    dcc.Store(id='store-df-original2'),
+    dcc.Store(id='store-df-original3')
 ])
+
+
+# Function to create a dropdown for frequency selection
+def create_frequency_dropdown(dropdown_id, dataframe, placeholder_text):
+    if not dataframe.empty and 'Frecuencia (Hz)' in dataframe.columns:
+        options = [{'label': freq, 'value': freq} for freq in
+                   sorted(dataframe['Frecuencia (Hz)'].unique().tolist())]
+    else:
+        options = []
+        placeholder_text = "No existe información disponible"
+    return dcc.Dropdown(
+        id=dropdown_id,
+        options=options,
+        placeholder=placeholder_text,
+        multi=True,
+        style={'margin': '10px'}
+    )
+
+
+# Function to create a Dash DataTable
+def create_dash_datatable(table_id, dataframe):
+    return dash_table.DataTable(
+        data=dataframe.to_dict('records'),
+        columns=[{"name": col, "id": col} for col in dataframe.columns],
+        style_table={'overflowX': 'auto', 'maxHeight': '300px'},
+        editable=True,
+        sort_action="native",
+        sort_mode="multi",
+        column_selectable="single",
+        row_selectable="multi",
+        row_deletable=True,
+        selected_columns=[],
+        selected_rows=[],
+        page_action="native",
+        page_current=0,
+        page_size=100,
+        id=table_id
+    )
 
 
 # Callback for updating tables
 @app.callback(
-    Output('data-tables-container', 'children'),
+    [Output('store-df-original1', 'data'),
+     Output('store-df-original2', 'data'),
+     Output('store-df-original3', 'data'),
+     Output('data-tables-container', 'children')],
     [Input('date-picker-range', 'start_date'),
      Input('date-picker-range', 'end_date'),
      Input('city-dropdown', 'value')]
 )
 def update_tables(fecha_inicio, fecha_fin, ciudad):
+    if not all([fecha_inicio, fecha_fin, ciudad]):
+        return {}, {}, {}, html.Div("Por favor selecciona una fecha de inicio, una fecha de fin y una ciudad.")
+
     if fecha_inicio is not None and fecha_fin is not None and ciudad is not None:
         selected_options = {
             'start_date': fecha_inicio,
@@ -68,40 +115,83 @@ def update_tables(fecha_inicio, fecha_fin, ciudad):
         df_original1 = convert_pivot_timestamps_to_strings(df_original1)
         df_original2 = convert_pivot_timestamps_to_strings(df_original2)
         df_original3 = convert_pivot_timestamps_to_strings(df_original3)
-        # Define the columns with filtering options for each table
-        columns1 = [
-            {"name": i, "id": i, "type": "text", "filter_options": {"case": "insensitive"}} if i in ["Tiempo",
-                                                                                                     "Estación"]
-            else {"name": i, "id": i, "type": "numeric"} if i == "Frecuencia (Hz)"
-            else {"name": i, "id": i}
-            for i in df_original1.columns
-        ]
 
-        columns2 = columns1  # Assuming the same columns for simplicity; adjust if necessary
-        columns3 = columns1  # Assuming the same columns for simplicity; adjust if necessary
+        # Create Dropdowns and Tables
+        dropdown1 = create_frequency_dropdown('frequency-dropdown1', df_original1, "Seleccione una Frecuencia")
+        dropdown2 = create_frequency_dropdown('frequency-dropdown2', df_original2, "Seleccione una Frecuencia")
+        dropdown3 = create_frequency_dropdown('frequency-dropdown3', df_original3, "Seleccione una Frecuencia")
 
-        # Create Dash DataTables for each DataFrame with scrolling enabled
-        table1 = dash_table.DataTable(df_original1.to_dict('records'),
-                                      columns=columns1,
-                                      style_table={'overflowX': 'auto', 'maxHeight': '300px'},
-                                      filter_action='native')
-        table2 = dash_table.DataTable(df_original2.to_dict('records'),
-                                      columns=columns2,
-                                      style_table={'overflowX': 'auto', 'maxHeight': '300px'},
-                                      filter_action='native')
-        table3 = dash_table.DataTable(df_original3.to_dict('records'),
-                                      columns=columns3,
-                                      style_table={'overflowX': 'auto', 'maxHeight': '300px'},
-                                      filter_action='native')
+        table1 = create_dash_datatable('table1', df_original1)
+        table2 = create_dash_datatable('table2', df_original2)
+        table3 = create_dash_datatable('table3', df_original3)
 
-        # Return the tables in separate tabs
-        return dcc.Tabs([
-            dcc.Tab(label='Radiodifusión FM', children=[table1]),
-            dcc.Tab(label='Televisión', children=[table2]),
-            dcc.Tab(label='Radiodifusión AM', children=[table3]),
+        # Prepare the tabs layout with dropdowns and tables
+        tabs_layout = dcc.Tabs([
+            dcc.Tab(label='Radiodifusión FM', children=[
+                html.Div(dropdown1, style={'marginBottom': '10px'}),
+                table1
+            ]),
+            dcc.Tab(label='Televisión', children=[
+                html.Div(dropdown2, style={'marginBottom': '10px'}),
+                table2
+            ]),
+            dcc.Tab(label='Radiodifusión AM', children=[
+                html.Div(dropdown3, style={'marginBottom': '10px'}),
+                table3
+            ]),
         ])
 
-    return html.Div("Please select a start date, end date, and a city.")
+        # Return the data for the stores and the tabs layout for the 'data-tables-container'
+        return df_original1.to_dict('records'), df_original2.to_dict('records'), df_original3.to_dict(
+            'records'), tabs_layout
+
+
+# Callback for table1 frequency filter
+@app.callback(
+    Output('table1', 'data'),
+    [Input('frequency-dropdown1', 'value'),
+     Input('store-df-original1', 'data')]
+)
+def update_table1(selected_frequencies1, stored_data1):
+    if stored_data1 is None:
+        return []
+    df_original1 = pd.DataFrame.from_records(stored_data1)
+    if not selected_frequencies1:
+        return df_original1.to_dict('records')
+    filtered_df1 = df_original1[df_original1['Frecuencia (Hz)'].isin(selected_frequencies1)]
+    return filtered_df1.to_dict('records')
+
+
+# Callback for table2 frequency filter
+@app.callback(
+    Output('table2', 'data'),
+    [Input('frequency-dropdown2', 'value'),
+     Input('store-df-original2', 'data')]
+)
+def update_table2(selected_frequencies2, stored_data2):
+    if stored_data2 is None:
+        return []
+    df_original2 = pd.DataFrame.from_records(stored_data2)
+    if not selected_frequencies2:
+        return df_original2.to_dict('records')
+    filtered_df2 = df_original2[df_original2['Frecuencia (Hz)'].isin(selected_frequencies2)]
+    return filtered_df2.to_dict('records')
+
+
+# Callback for table3 frequency filter
+@app.callback(
+    Output('table3', 'data'),
+    [Input('frequency-dropdown3', 'value'),
+     Input('store-df-original3', 'data')]
+)
+def update_table3(selected_frequencies3, stored_data3):
+    if stored_data3 is None:
+        return []
+    df_original3 = pd.DataFrame.from_records(stored_data3)
+    if not selected_frequencies3:
+        return df_original3.to_dict('records')
+    filtered_df3 = df_original3[df_original3['Frecuencia (Hz)'].isin(selected_frequencies3)]
+    return filtered_df3.to_dict('records')
 
 
 CITIES1 = settings.CITIES1
