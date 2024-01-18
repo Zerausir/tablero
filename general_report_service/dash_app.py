@@ -44,12 +44,18 @@ app.layout = html.Div([
     dcc.Loading(
         id="loading-1",
         type="default",  # Options: "graph", "cube", "circle", "dot", or "default"
-        children=html.Div(id='data-tables-container'),
+        children=[
+            html.Div(id='data-tables-container'),
+            dcc.Graph(id='heatmap-graph')
+        ],
         style={'margin': '10px'}
     ),
     dcc.Store(id='store-df-original1'),
     dcc.Store(id='store-df-original2'),
-    dcc.Store(id='store-df-original3')
+    dcc.Store(id='store-df-original3'),
+    dcc.Store(id='store-df-original4'),
+    dcc.Store(id='store-df-original5'),
+    dcc.Store(id='store-df-original6'),
 ])
 
 
@@ -111,10 +117,10 @@ def update_tables(fecha_inicio, fecha_fin, ciudad):
             'end_date': fecha_fin,
             'city': ciudad,
         }
-        df_original1, df_original2, df_original3 = customize_data(selected_options)
-        df_original1 = convert_pivot_timestamps_to_strings(df_original1)
-        df_original2 = convert_pivot_timestamps_to_strings(df_original2)
-        df_original3 = convert_pivot_timestamps_to_strings(df_original3)
+        df_original1, df_original2, df_original3 = customize_data(selected_options)[:3]
+        df_original1 = convert_timestamps_to_strings(df_original1)
+        df_original2 = convert_timestamps_to_strings(df_original2)
+        df_original3 = convert_timestamps_to_strings(df_original3)
 
         # Create Dropdowns and Tables
         dropdown1 = create_frequency_dropdown('frequency-dropdown1', df_original1, "Seleccione una Frecuencia")
@@ -146,52 +152,44 @@ def update_tables(fecha_inicio, fecha_fin, ciudad):
             'records'), tabs_layout
 
 
-# Callback for table1 frequency filter
+def update_table(selected_frequencies, stored_data, table_id):
+    if stored_data is None:
+        return []
+
+    df_original = pd.DataFrame.from_records(stored_data)
+
+    if not selected_frequencies:
+        return df_original.to_dict('records')
+
+    filtered_df = df_original[df_original['Frecuencia (Hz)'].isin(selected_frequencies)]
+    return filtered_df.to_dict('records')
+
+
 @app.callback(
     Output('table1', 'data'),
     [Input('frequency-dropdown1', 'value'),
      Input('store-df-original1', 'data')]
 )
 def update_table1(selected_frequencies1, stored_data1):
-    if stored_data1 is None:
-        return []
-    df_original1 = pd.DataFrame.from_records(stored_data1)
-    if not selected_frequencies1:
-        return df_original1.to_dict('records')
-    filtered_df1 = df_original1[df_original1['Frecuencia (Hz)'].isin(selected_frequencies1)]
-    return filtered_df1.to_dict('records')
+    return update_table(selected_frequencies1, stored_data1, 'table1')
 
 
-# Callback for table2 frequency filter
 @app.callback(
     Output('table2', 'data'),
     [Input('frequency-dropdown2', 'value'),
      Input('store-df-original2', 'data')]
 )
 def update_table2(selected_frequencies2, stored_data2):
-    if stored_data2 is None:
-        return []
-    df_original2 = pd.DataFrame.from_records(stored_data2)
-    if not selected_frequencies2:
-        return df_original2.to_dict('records')
-    filtered_df2 = df_original2[df_original2['Frecuencia (Hz)'].isin(selected_frequencies2)]
-    return filtered_df2.to_dict('records')
+    return update_table(selected_frequencies2, stored_data2, 'table2')
 
 
-# Callback for table3 frequency filter
 @app.callback(
     Output('table3', 'data'),
     [Input('frequency-dropdown3', 'value'),
      Input('store-df-original3', 'data')]
 )
 def update_table3(selected_frequencies3, stored_data3):
-    if stored_data3 is None:
-        return []
-    df_original3 = pd.DataFrame.from_records(stored_data3)
-    if not selected_frequencies3:
-        return df_original3.to_dict('records')
-    filtered_df3 = df_original3[df_original3['Frecuencia (Hz)'].isin(selected_frequencies3)]
-    return filtered_df3.to_dict('records')
+    return update_table(selected_frequencies3, stored_data3, 'table3')
 
 
 CITIES1 = settings.CITIES1
@@ -208,7 +206,8 @@ def get_options(self) -> dict:
     return get_options_from_index_service_api()
 
 
-def customize_data(selected_options: dict) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+def customize_data(selected_options: dict) -> tuple[
+    pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """
     Customize data based on selected city and date range.
 
@@ -236,35 +235,32 @@ def customize_data(selected_options: dict) -> tuple[pd.DataFrame, pd.DataFrame, 
 
     month_year = generate_month_year_vector(Year1, Year2)
 
-    df_d1, df_d2, df_d3 = read_data_files(selected_options, ciu, month_year, sheet_name1, sheet_name2,
-                                          sheet_name3)
+    df_data1, df_data2, df_data3 = read_data_files(selected_options, ciu, month_year, sheet_name1, sheet_name2,
+                                                   sheet_name3)
 
     dfau = pd.concat([read_and_process_aut(settings.FILE_AUT_SUS, settings.COLUMNS_AUT, 'S'),
                       read_and_process_aut(settings.FILE_AUT_BP, settings.COLUMNS_AUTBP, 'BP')],
                      ignore_index=True)
 
-    df_original1 = pd.DataFrame(df_d1, columns=settings.COLUMNS_FM)
-    df_original1['Tiempo'] = pd.to_datetime(df_original1['Tiempo'], format="%d/%m/%Y %H:%M:%S.%f")
-    df_original1 = clean_data(fecha_inicio, fecha_fin, df_original1, sheet_name1)
-    df_original1 = simplify_fm_broadcasting(df_original1, dfau, autori)
+    df_origin1 = pd.DataFrame(df_data1, columns=settings.COLUMNS_FM)
+    df_origin1['Tiempo'] = pd.to_datetime(df_origin1['Tiempo'], format="%d/%m/%Y %H:%M:%S.%f")
+    df_clean1 = clean_data(fecha_inicio, fecha_fin, df_origin1, sheet_name1)
+    df_original1 = simplify_fm_broadcasting(df_clean1, dfau, autori)
 
-    df_original2 = pd.DataFrame(df_d2, columns=settings.COLUMNS_TV)
-    df_original2['Tiempo'] = pd.to_datetime(df_original2['Tiempo'], format="%d/%m/%Y %H:%M:%S.%f")
-    df_original2 = clean_data(fecha_inicio, fecha_fin, df_original2, sheet_name2)
-    df_original2 = simplify_tv_broadcasting(df_original2, dfau, autori)
+    df_origin2 = pd.DataFrame(df_data2, columns=settings.COLUMNS_TV)
+    df_origin2['Tiempo'] = pd.to_datetime(df_origin2['Tiempo'], format="%d/%m/%Y %H:%M:%S.%f")
+    df_clean2 = clean_data(fecha_inicio, fecha_fin, df_origin2, sheet_name2)
+    df_original2 = simplify_tv_broadcasting(df_clean2, dfau, autori)
 
-    if df_d3 is not None:
-        df_original3 = pd.DataFrame(df_d3, columns=settings.COLUMNS_AM)
-        df_original3['Tiempo'] = pd.to_datetime(df_original3['Tiempo'], format="%d/%m/%Y %H:%M:%S.%f")
-        df_original3 = clean_data(fecha_inicio, fecha_fin, df_original3, sheet_name3)
-        df_original3 = simplify_am_broadcasting(df_original3, dfau, autori)
+    if df_data3 is not None:
+        df_origin3 = pd.DataFrame(df_data3, columns=settings.COLUMNS_AM)
+        df_origin3['Tiempo'] = pd.to_datetime(df_origin3['Tiempo'], format="%d/%m/%Y %H:%M:%S.%f")
+        df_clean3 = clean_data(fecha_inicio, fecha_fin, df_origin3, sheet_name3)
+        df_original3 = simplify_am_broadcasting(df_clean3, dfau, autori)
     else:
+        df_clean3 = pd.DataFrame()
         df_original3 = pd.DataFrame()
-
-    # return convert_pivot_timestamps_to_strings(df_original1), convert_pivot_timestamps_to_strings(
-    #     df_original2), convert_pivot_timestamps_to_strings(df_original3)
-
-    return df_original1, df_original2, df_original3
+    return df_original1, df_original2, df_original3, df_clean1, df_clean2, df_clean3
 
 
 def translate_month(month: str) -> str:
@@ -323,23 +319,23 @@ def read_data_files(selected_options: dict, ciu: str, month_year: list[str], she
     end_idx = month_year.index(f"{translate_month(end_date.strftime('%B'))}_{end_date.year}")
 
     # Initialize empty lists to store data
-    df_d1, df_d2, df_d3 = [], [], []
+    df_data1, df_data2, df_data3 = [], [], []
 
     # Iterate over the relevant months and read data
     for mes in month_year[start_idx:end_idx + 1]:
-        df_d1.append(read_csv_file(f'{settings.SERVER_ROUTE}/{ciu}/FM_{ciu}_{mes}.csv', settings.COLUMNS_FM))
-        df_d2.append(read_csv_file(f'{settings.SERVER_ROUTE}/{ciu}/TV_{ciu}_{mes}.csv', settings.COLUMNS_TV))
+        df_data1.append(read_csv_file(f'{settings.SERVER_ROUTE}/{ciu}/FM_{ciu}_{mes}.csv', settings.COLUMNS_FM))
+        df_data2.append(read_csv_file(f'{settings.SERVER_ROUTE}/{ciu}/TV_{ciu}_{mes}.csv', settings.COLUMNS_TV))
 
         if sheet_name3:
-            df_d3.append(
+            df_data3.append(
                 read_csv_file(f'{settings.SERVER_ROUTE}/{ciu}/AM_{ciu}_{mes}.csv', settings.COLUMNS_AM))
 
     # Concatenate the data and handle None for df_d3
-    df_d1 = dd.concat(df_d1).compute() if df_d1 else dd.from_array(np.array([]))
-    df_d2 = dd.concat(df_d2).compute() if df_d2 else dd.from_array(np.array([]))
-    df_d3 = dd.concat(df_d3).compute() if df_d3 else None
+    df_data1 = dd.concat(df_data1).compute() if df_data1 else dd.from_array(np.array([]))
+    df_data2 = dd.concat(df_data2).compute() if df_data2 else dd.from_array(np.array([]))
+    df_data3 = dd.concat(df_data3).compute() if df_data3 else None
 
-    return df_d1, df_d2, df_d3
+    return df_data1, df_data2, df_data3
 
 
 def read_csv_file(file_path: str, columns: list[str]) -> dd.DataFrame:
@@ -612,7 +608,7 @@ def create_pivot_table(df: pd.DataFrame, index: list, values: list, columns: lis
     return final_result
 
 
-def simplify_fm_broadcasting(df9: pd.DataFrame, dfau1: pd.DataFrame, autori: str) -> DataFrame:
+def simplify_fm_broadcasting(df: pd.DataFrame, dfau: pd.DataFrame, autori: str) -> DataFrame:
     """
     Simplify FM broadcasting data.
 
@@ -624,17 +620,17 @@ def simplify_fm_broadcasting(df9: pd.DataFrame, dfau1: pd.DataFrame, autori: str
     Returns:
         pd.DataFrame: Simplified DataFrame.
     """
-    df11_authorization = process_authorization_am_fm_df(dfau1, 87700000, 108100000, autori)
-    df11 = merge_authorization_with_data(df11_authorization, df9, ['Tiempo', 'Frecuencia (Hz)'])
-    df_final3 = df11.groupby(['Frecuencia (Hz)', 'Estación', pd.Grouper(key='Tiempo', freq='D')]).agg(
+    df_authorization = process_authorization_am_fm_df(dfau, 87700000, 108100000, autori)
+    df_merge_data_aut = merge_authorization_with_data(df_authorization, df, ['Tiempo', 'Frecuencia (Hz)'])
+    df_data_aut = df_merge_data_aut.groupby(['Frecuencia (Hz)', 'Estación', pd.Grouper(key='Tiempo', freq='D')]).agg(
         {'Level (dBµV/m)': 'max', 'Bandwidth (Hz)': np.average, 'Fecha_fin': 'max'})
-    df_final3 = df_final3.reset_index().sort_values(by='Tiempo', ascending=True)
+    df_data_aut = df_data_aut.reset_index().sort_values(by='Tiempo', ascending=True)
     new_order = ['Tiempo', 'Frecuencia (Hz)', 'Estación', 'Level (dBµV/m)', 'Bandwidth (Hz)', 'Fecha_fin']
-    df_final3 = df_final3[new_order]
-    return df_final3
+    df_data_aut = df_data_aut[new_order]
+    return df_data_aut
 
 
-def simplify_tv_broadcasting(df10: pd.DataFrame, dfau1: pd.DataFrame, autori: str) -> pd.DataFrame:
+def simplify_tv_broadcasting(df: pd.DataFrame, dfau: pd.DataFrame, autori: str) -> pd.DataFrame:
     """
     Simplify TV broadcasting data.
 
@@ -646,19 +642,19 @@ def simplify_tv_broadcasting(df10: pd.DataFrame, dfau1: pd.DataFrame, autori: st
     Returns:
         pd.DataFrame: Simplified DataFrame.
     """
-    df12_authorization = process_authorization_tv_df(dfau1, 2, 51, autori)
-    df12 = merge_authorization_with_data(df12_authorization, df10, ['Tiempo', 'Canal (Número)'])
-    df_final4 = df12.groupby(
+    df_authorization = process_authorization_tv_df(dfau, 2, 51, autori)
+    df_merge_data_aut = merge_authorization_with_data(df_authorization, df, ['Tiempo', 'Canal (Número)'])
+    df_data_aut = df_merge_data_aut.groupby(
         ['Frecuencia (Hz)', 'Estación', 'Canal (Número)', 'Analógico/Digital', pd.Grouper(key='Tiempo', freq='D')]).agg(
         {'Level (dBµV/m)': 'max', 'Fecha_fin': 'max'})
-    df_final4 = df_final4.reset_index().sort_values(by='Tiempo', ascending=True)
+    df_data_aut = df_data_aut.reset_index().sort_values(by='Tiempo', ascending=True)
     new_order = ['Tiempo', 'Frecuencia (Hz)', 'Estación', 'Canal (Número)', 'Analógico/Digital', 'Level (dBµV/m)',
                  'Fecha_fin']
-    df_final4 = df_final4[new_order]
-    return df_final4
+    df_data_aut = df_data_aut[new_order]
+    return df_data_aut
 
 
-def simplify_am_broadcasting(df17: pd.DataFrame, dfau1: pd.DataFrame, autori: str) -> pd.DataFrame:
+def simplify_am_broadcasting(df: pd.DataFrame, dfau: pd.DataFrame, autori: str) -> pd.DataFrame:
     """
     Simplify AM broadcasting data.
 
@@ -670,41 +666,17 @@ def simplify_am_broadcasting(df17: pd.DataFrame, dfau1: pd.DataFrame, autori: st
     Returns:
         pd.DataFrame: Simplified DataFrame.
     """
-    df18_authorization = process_authorization_am_fm_df(dfau1, 570000, 1590000, autori)
-    df18 = merge_authorization_with_data(df18_authorization, df17, ['Tiempo', 'Frecuencia (Hz)'])
-    df_final8 = df18.groupby(['Frecuencia (Hz)', 'Estación', pd.Grouper(key='Tiempo', freq='D')]).agg(
+    df_authorization = process_authorization_am_fm_df(dfau, 570000, 1590000, autori)
+    df_merge_data_aut = merge_authorization_with_data(df_authorization, df, ['Tiempo', 'Frecuencia (Hz)'])
+    df_data_aut = df_merge_data_aut.groupby(['Frecuencia (Hz)', 'Estación', pd.Grouper(key='Tiempo', freq='D')]).agg(
         {'Level (dBµV/m)': 'max', 'Bandwidth (Hz)': np.average, 'Fecha_fin': 'max'})
-    df_final8 = df_final8.reset_index().sort_values(by='Tiempo', ascending=True)
+    df_data_aut = df_data_aut.reset_index().sort_values(by='Tiempo', ascending=True)
     new_order = ['Tiempo', 'Frecuencia (Hz)', 'Estación', 'Level (dBµV/m)', 'Bandwidth (Hz)', 'Fecha_fin']
-    df_final8 = df_final8[new_order]
-    return df_final8
+    df_data_aut = df_data_aut[new_order]
+    return df_data_aut
 
 
-def convert_pivot_timestamps_to_strings(df):
-    # Convert MultiIndex column headers
-    if isinstance(df.columns, pd.MultiIndex):
-        df.columns = df.columns.map(
-            lambda x: [y.strftime('%Y-%m-%d %H:%M:%S') if isinstance(y, pd.Timestamp) else y for y in x])
-    else:
-        df.columns = [x.strftime('%Y-%m-%d %H:%M:%S') if isinstance(x, pd.Timestamp) else x for x in df.columns]
-
-    # Convert MultiIndex index
-    if isinstance(df.index, pd.MultiIndex):
-        df.index = df.index.map(
-            lambda x: [y.strftime('%Y-%m-%d %H:%M:%S') if isinstance(y, pd.Timestamp) else y for y in x])
-    else:
-        df.index = [x.strftime('%Y-%m-%d %H:%M:%S') if isinstance(x, pd.Timestamp) else x for x in df.index]
-
-    # Convert Timestamps in DataFrame data
-    for column in df:
-        if df[column].apply(lambda x: isinstance(x, pd.Timestamp)).any():
-            df[column] = df[column].apply(
-                lambda x: x.strftime('%Y-%m-%d %H:%M:%S') if isinstance(x, pd.Timestamp) else x)
-
-    return df
-
-
-def convert_pivot_timestamps_to_strings(df):
+def convert_timestamps_to_strings(df):
     # Check if 'Tiempo' is in the columns of the DataFrame
     if 'Tiempo' in df.columns:
         # Convert 'Tiempo' to string format only with year, month, and day
