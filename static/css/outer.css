@@ -1,6 +1,39 @@
 /* outer.css */
+body {
+    margin: 0;
+    padding: 0;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #f4f4f4;
+    color: #333;
+    overflow-x: hidden;
+}
+
+.dashboard-container {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    margin: auto;
+    padding: 20px;
+}
+
+h1 {
+    color: #2c3e50;
+    margin-bottom: 20px;
+}
+
+/* Styles for iframes */
 iframe {
     width: 100%;
     aspect-ratio: 16 / 9;
-    border: none; /* Optional: remove iframe border */
+    border: none; /* Remove iframe border */
 }
+
+/* You may also want to style links, buttons, and other elements here */
+a, button {
+    color: #3498db;
+    text-decoration: none;
+}
+
+/* Rest of your styles... */

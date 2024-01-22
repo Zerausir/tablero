@@ -1,9 +1,113 @@
 /* inner.css */
 body {
     margin: 0;
-    overflow: hidden; /* Optional: if you want to remove scrolling inside iframe */
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #f4f4f4;
+    color: #333;
 }
 
+/* Preserving the aspect ratio for Dash graphs */
 .dash-graph {
     aspect-ratio: 16 / 9;
 }
+
+/* Style for the overall app layout */
+#general-report-app {
+    padding: 20px;
+    max-width: 1200px;
+    margin: auto;
+}
+
+/* Style for DatePickerRange */
+.DateInput, .DateRangePickerInput {
+    margin: 10px;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background-color: #fff;
+}
+
+.DateInput_input {
+    font-size: 1rem;
+}
+
+/* Style for Dropdown */
+.Select-control, .Select-menu-outer {
+    margin: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background-color: #fff;
+}
+
+.Select-value, .Select-input {
+    padding: 10px;
+}
+
+.Select-value-label, .Select-placeholder {
+    font-size: 1rem;
+}
+
+/* Style for Checklist */
+.Checkbox {
+    display: flex;
+    align-items: center;
+    margin: 10px;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background-color: #fff;
+}
+
+.Checkbox input {
+    margin-right: 10px;
+}
+
+/* Style for the Loading component */
+.dcc-loading {
+    color: #2c3e50;
+}
+
+/* Style for the DataTable */
+.dash-table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 10px 0;
+    background-color: #fff;
+}
+
+.dash-table th, .dash-table td {
+    border: 1px solid #ddd;
+    text-align: left;
+    padding: 8px;
+}
+
+.dash-table tr:nth-child(even) {
+    background-color: #f2f2f2;
+}
+
+/* Style for Tabs */
+.tab {
+    border: none;
+    background-color: #f4f4f4;
+    color: #333;
+    padding: 10px;
+    margin: 10px;
+    border-radius: 4px;
+}
+
+.tab--selected {
+    border-bottom: 2px solid #333;
+}
+
+/* Style for Graphs */
+.dash-graph .plotly-graph-div {
+    box-shadow: 0 4px 8px 0 rgba(0,0,0,0.2);
+    transition: 0.3s;
+    border-radius: 5px;
+}
+
+.dash-graph .plotly-graph-div:hover {
+    box-shadow: 0 8px 16px 0 rgba(0,0,0,0.2);
+}
+
+/* Additional custom styles can be added below */
