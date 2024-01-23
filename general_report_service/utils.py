@@ -1,7 +1,6 @@
 import dask.dataframe as dd
 import numpy as np
 import pandas as pd
-import matplotlib
 from django.conf import settings
 import plotly.graph_objs as go
 from dash import dcc, html, dash_table
@@ -84,6 +83,23 @@ def create_dash_datatable(table_id: str, dataframe: pd.DataFrame) -> dash_table.
         data=dataframe.to_dict('records'),
         columns=[{"name": col, "id": col} for col in dataframe.columns],
         style_table={'overflowX': 'auto', 'maxHeight': '300px'},
+        style_cell={  # Default cell style
+            'minWidth': '100px', 'width': '150px', 'maxWidth': '300px',
+            'overflow': 'hidden',
+            'textOverflow': 'ellipsis',
+        },
+        style_cell_conditional=[  # Conditional styling to handle different column types or specific columns
+            {'if': {'column_id': c},
+             'textAlign': 'left'} for c in ['column_name_1', 'column_name_2']
+            # Example for text alignment, replace with your column names
+        ],
+        style_header={  # Styling for the header to ensure it's consistent with the body
+            'backgroundColor': 'white',
+            'fontWeight': 'bold',
+            'textAlign': 'center',
+            'overflow': 'hidden',
+            'textOverflow': 'ellipsis',
+        },
         editable=True,
         sort_action="native",
         sort_mode="multi",
@@ -96,7 +112,8 @@ def create_dash_datatable(table_id: str, dataframe: pd.DataFrame) -> dash_table.
         page_current=0,
         page_size=100,
         id=table_id,
-        style_data_conditional=style_data_conditional
+        style_data_conditional=style_data_conditional,
+        fixed_rows={'headers': True},  # This line fixes the header row at the top
     )
 
 
