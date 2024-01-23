@@ -1,6 +1,7 @@
 import dask.dataframe as dd
 import numpy as np
 import pandas as pd
+import matplotlib
 from django.conf import settings
 import plotly.graph_objs as go
 from dash import dcc, html, dash_table
@@ -40,15 +41,45 @@ def convert_timestamps_to_strings(df: pd.DataFrame) -> pd.DataFrame:
 
 def create_dash_datatable(table_id: str, dataframe: pd.DataFrame) -> dash_table.DataTable:
     """
-        Create a Dash DataTable from a Pandas DataFrame with certain pre-defined styles and functionalities.
+    Create a Dash DataTable from a Pandas DataFrame with certain pre-defined styles and functionalities.
 
-        Args:
-            table_id (str): Identifier for the Dash DataTable.
-            dataframe (pd.DataFrame): The DataFrame from which the Dash DataTable is to be created.
+    Args:
+        table_id (str): Identifier for the Dash DataTable.
+        dataframe (pd.DataFrame): The DataFrame from which the Dash DataTable is to be created.
 
-        Returns:
-            dash_table.DataTable: A Dash DataTable component.
-        """
+    Returns:
+        dash_table.DataTable: A Dash DataTable component.
+    """
+    # Define the range for your color scale
+    zmin = 0
+    zmax = 130
+
+    # Define the Plotly rainbow color scale
+    plotly_rainbow_scale = ['rgb(150,0,90)', 'rgb(0,0,200)', 'rgb(0,25,255)', 'rgb(0,152,255)',
+                            'rgb(44,255,150)', 'rgb(151,255,0)', 'rgb(255,234,0)', 'rgb(255,111,0)', 'rgb(255,0,0)']
+
+    # Function to determine if text color should be white or black based on background color
+    def text_color_based_on_background(background_color):
+        # Parse the background color string and get R, G, B values
+        r, g, b = [int(x) for x in background_color.replace('rgb(', '').replace(')', '').split(',')]
+        # Calculate the luminance
+        luminance = (0.299 * r + 0.587 * g + 0.114 * b)
+        # Return 'white' for dark background colors and 'black' for light background colors
+        return 'white' if luminance < 150 else 'black'
+
+    # Create conditional formatting for the 'Level (dBµV/m)' column
+    style_data_conditional = [
+        {
+            'if': {
+                'filter_query': f'{{Level (dBµV/m)}} >= {zmin + (zmax - zmin) * i / (len(plotly_rainbow_scale) - 1)} && {{Level (dBµV/m)}} < {zmin + (zmax - zmin) * (i + 1) / (len(plotly_rainbow_scale) - 1)}',
+                'column_id': 'Level (dBµV/m)'
+            },
+            'backgroundColor': plotly_rainbow_scale[i],
+            'color': text_color_based_on_background(plotly_rainbow_scale[i])
+        }
+        for i in range(len(plotly_rainbow_scale))  # Iterate through the color scale
+    ]
+
     return dash_table.DataTable(
         data=dataframe.to_dict('records'),
         columns=[{"name": col, "id": col} for col in dataframe.columns],
@@ -64,7 +95,8 @@ def create_dash_datatable(table_id: str, dataframe: pd.DataFrame) -> dash_table.
         page_action="native",
         page_current=0,
         page_size=100,
-        id=table_id
+        id=table_id,
+        style_data_conditional=style_data_conditional
     )
 
 
@@ -110,6 +142,8 @@ def create_heatmap_data(df: pd.DataFrame) -> dict:
     if df.empty:
         return go.Figure()
 
+    df = df.fillna(0)
+
     heatmap_data = df.pivot_table(values='Level (dBµV/m)', index='Tiempo', columns='Frecuencia (Hz)')
 
     freq_categories = heatmap_data.columns.astype(str)
@@ -121,7 +155,7 @@ def create_heatmap_data(df: pd.DataFrame) -> dict:
             y=heatmap_data.index[::-1],
             colorscale='rainbow',
             zmin=0,
-            zmax=120,
+            zmax=130,
             colorbar=dict(title='Nivel (dBµV/m)')
         )],
         'layout': go.Layout(

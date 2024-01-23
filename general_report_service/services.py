@@ -74,14 +74,14 @@ def customize_data(selected_options: dict) -> tuple[
     df_origin1 = pd.DataFrame(df_data1, columns=settings.COLUMNS_FM)
     df_origin1['Tiempo'] = pd.to_datetime(df_origin1['Tiempo'], format="%d/%m/%Y %H:%M:%S.%f")
     df_clean1 = clean_data(fecha_inicio, fecha_fin, df_origin1, sheet_name1)
-    df_original1 = simplify_fm_broadcasting(df_clean1, dfau, autori)
+    df_original1 = simplify_fm_broadcasting(df_clean1, dfau, autori).fillna('-')
     df_clean1 = df_clean1.drop(
         columns=['Offset (Hz)', 'FM (Hz)', 'Bandwidth (Hz)', 'Estación', 'Potencia', 'BW Asignado'])
 
     df_origin2 = pd.DataFrame(df_data2, columns=settings.COLUMNS_TV)
     df_origin2['Tiempo'] = pd.to_datetime(df_origin2['Tiempo'], format="%d/%m/%Y %H:%M:%S.%f")
     df_clean2 = clean_data(fecha_inicio, fecha_fin, df_origin2, sheet_name2)
-    df_original2 = simplify_tv_broadcasting(df_clean2, dfau, autori)
+    df_original2 = simplify_tv_broadcasting(df_clean2, dfau, autori).fillna('-')
     df_clean2 = df_clean2.drop(
         columns=['Offset (Hz)', 'AM (%)', 'Bandwidth (Hz)', 'Estación', 'Canal (Número)', 'Analógico/Digital'])
 
@@ -89,7 +89,7 @@ def customize_data(selected_options: dict) -> tuple[
         df_origin3 = pd.DataFrame(df_data3, columns=settings.COLUMNS_AM)
         df_origin3['Tiempo'] = pd.to_datetime(df_origin3['Tiempo'], format="%d/%m/%Y %H:%M:%S.%f")
         df_clean3 = clean_data(fecha_inicio, fecha_fin, df_origin3, sheet_name3)
-        df_original3 = simplify_am_broadcasting(df_clean3, dfau, autori)
+        df_original3 = simplify_am_broadcasting(df_clean3, dfau, autori).fillna('-')
         df_clean3 = df_clean3.drop(
             columns=['Offset (Hz)', 'AM (%)', 'Bandwidth (Hz)', 'Estación'])
     else:
@@ -271,9 +271,21 @@ def clean_data(start_date: str, end_date: str, df_primary: pd.DataFrame, sheet_n
     df_complete = df_primary.merge(df_tx, how='left', on='Frecuencia (Hz)')
 
     # Filter the data to the desired date range and fill missing values
-    df_complete = df_complete[(df_complete['Tiempo'] >= start_date) & (df_complete['Tiempo'] <= end_date)].fillna(0)
+    df_complete = df_complete[(df_complete['Tiempo'] >= start_date) & (df_complete['Tiempo'] <= end_date)]
 
     return df_complete
+
+
+def safe_average(series):
+    # Convert to numeric, setting errors to 'coerce' which converts problematic inputs to NaN
+    numeric_series = pd.to_numeric(series, errors='coerce')
+
+    # If the entire series is NaN (after coercion), return NaN
+    if numeric_series.isna().all():
+        return np.nan
+
+    # Otherwise, return the mean of the series, skipping NaN values
+    return numeric_series.mean(skipna=True)
 
 
 def simplify_fm_broadcasting(df: pd.DataFrame, dfau: pd.DataFrame, autori: str) -> DataFrame:
@@ -291,7 +303,7 @@ def simplify_fm_broadcasting(df: pd.DataFrame, dfau: pd.DataFrame, autori: str) 
     df_authorization = process_authorization_am_fm_df(dfau, 87700000, 108100000, autori)
     df_merge_data_aut = merge_authorization_with_data(df_authorization, df, ['Tiempo', 'Frecuencia (Hz)'])
     df_data_aut = df_merge_data_aut.groupby(['Frecuencia (Hz)', 'Estación', pd.Grouper(key='Tiempo', freq='D')]).agg(
-        {'Level (dBµV/m)': 'max', 'Bandwidth (Hz)': np.average, 'Fecha_fin': 'max'})
+        {'Level (dBµV/m)': 'max', 'Bandwidth (Hz)': safe_average, 'Fecha_fin': 'max'})
     df_data_aut = df_data_aut.reset_index().sort_values(by='Tiempo', ascending=True)
     new_order = ['Tiempo', 'Frecuencia (Hz)', 'Estación', 'Level (dBµV/m)', 'Bandwidth (Hz)', 'Fecha_fin']
     df_data_aut = df_data_aut[new_order]
@@ -337,7 +349,7 @@ def simplify_am_broadcasting(df: pd.DataFrame, dfau: pd.DataFrame, autori: str) 
     df_authorization = process_authorization_am_fm_df(dfau, 570000, 1590000, autori)
     df_merge_data_aut = merge_authorization_with_data(df_authorization, df, ['Tiempo', 'Frecuencia (Hz)'])
     df_data_aut = df_merge_data_aut.groupby(['Frecuencia (Hz)', 'Estación', pd.Grouper(key='Tiempo', freq='D')]).agg(
-        {'Level (dBµV/m)': 'max', 'Bandwidth (Hz)': np.average, 'Fecha_fin': 'max'})
+        {'Level (dBµV/m)': 'max', 'Bandwidth (Hz)': safe_average, 'Fecha_fin': 'max'})
     df_data_aut = df_data_aut.reset_index().sort_values(by='Tiempo', ascending=True)
     new_order = ['Tiempo', 'Frecuencia (Hz)', 'Estación', 'Level (dBµV/m)', 'Bandwidth (Hz)', 'Fecha_fin']
     df_data_aut = df_data_aut[new_order]
@@ -424,7 +436,7 @@ def merge_authorization_with_data(df_authorization: pd.DataFrame, df_data: pd.Da
     df_authorization = df_authorization.rename(columns={'Fecha_inicio': 'Tiempo'})
 
     result_df = df_authorization.merge(df_data, how='right', on=merge_columns)
-    return result_df.fillna('-')
+    return result_df
 
 
 def create_pivot_table(df: pd.DataFrame, index: list, values: list, columns: list,
