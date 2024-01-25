@@ -1,12 +1,43 @@
 import dask.dataframe as dd
 import numpy as np
 import pandas as pd
+import datetime
 from django.conf import settings
 import plotly.graph_objs as go
 from dash import dcc, html, dash_table
 from typing import Union
 
 MONTH_TRANSLATIONS = settings.MONTH_TRANSLATIONS
+
+
+def convert_end_date(date_time: str) -> datetime.datetime:
+    """
+    Convert end date string to datetime object with time set to '23:59:59'.
+
+    Args:
+        date_time (str): End date string.
+
+    Returns:
+        datetime.datetime: Corresponding datetime object.
+    """
+    datetime_obj = datetime.datetime.strptime(date_time, '%Y-%m-%d')
+    datetime_obj = datetime_obj.replace(hour=23, minute=59, second=59)
+    return datetime_obj
+
+
+def convert_start_date(date_time: str) -> datetime.datetime:
+    """
+    Convert start date string to datetime object with time set to '00:00:01'.
+
+    Args:
+        date_time (str): Start date string.
+
+    Returns:
+        datetime.datetime: Corresponding datetime object.
+    """
+    datetime_obj = datetime.datetime.strptime(date_time, '%Y-%m-%d')
+    datetime_obj = datetime_obj.replace(hour=0, minute=0, second=1)
+    return datetime_obj
 
 
 def convert_timestamps_to_strings(df: pd.DataFrame) -> pd.DataFrame:
@@ -160,10 +191,15 @@ def create_heatmap_data(df: pd.DataFrame) -> dict:
         return go.Figure()
 
     df = df.fillna(0)
+    print(df.columns)
 
-    heatmap_data = df.pivot_table(values='Level (dBµV/m)', index='Tiempo', columns='Frecuencia (Hz)')
+    heatmap_data = df.pivot_table(values='Level (dBµV/m)', index='Tiempo', columns=['Frecuencia (Hz)', 'Estación'])
 
-    freq_categories = heatmap_data.columns.astype(str)
+    # Create the x-axis labels. If 'Estación' is "-", only use 'Frecuencia (Hz)'
+    freq_categories = [
+        "{} Hz".format(freq) if station == "-" else "{} Hz | {}".format(freq, station)
+        for freq, station in heatmap_data.columns
+    ]
 
     return {
         'data': [go.Heatmap(
@@ -179,15 +215,19 @@ def create_heatmap_data(df: pd.DataFrame) -> dict:
             title='Nivel de Intensidad de Campo Eléctrico por Frecuencia',
             xaxis={
                 'title': 'Frecuencia (Hz)',
-                'type': 'category'
+                'type': 'category',
+                'tickvals': list(range(len(freq_categories))),
+                'ticktext': freq_categories
             },
             yaxis={'title': 'Tiempo'},
             margin=go.layout.Margin(
                 l=100,
                 r=100,
-                b=100,
+                b=400,
                 t=100,
-            )
+            ),
+            autosize=True,  # Allow plot to resize based on the outer div
+            height=900,  # You can adjust this height if the plot is too cramped
         )
     }
 

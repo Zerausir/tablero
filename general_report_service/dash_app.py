@@ -22,6 +22,7 @@ def define_app_layout():
             id='date-picker-range',
             start_date_placeholder_text="Fecha inicial",
             end_date_placeholder_text="Fecha final",
+            minimum_nights=0,
             style={'margin': '10px'}
         ),
         dcc.Dropdown(
