@@ -4,7 +4,7 @@ import pandas as pd
 import datetime
 from django.conf import settings
 import plotly.graph_objs as go
-from dash import dcc, html, dash_table
+from dash import dcc, html, dash_table, no_update
 from typing import Union
 
 MONTH_TRANSLATIONS = settings.MONTH_TRANSLATIONS
@@ -191,7 +191,6 @@ def create_heatmap_data(df: pd.DataFrame) -> dict:
         return go.Figure()
 
     df = df.fillna(0)
-    print(df.columns)
 
     heatmap_data = df.pivot_table(values='Level (dBµV/m)', index='Tiempo', columns=['Frecuencia (Hz)', 'Estación'])
 
@@ -257,17 +256,20 @@ def create_heatmap_layout(df_original1: pd.DataFrame, df_original2: pd.DataFrame
         dcc.Tab(label='Radiodifusión FM', children=[
             html.Div(dropdown1, style={'marginBottom': '10px'}),
             table1,
-            dcc.Graph(id='heatmap1')  # Placeholder for heatmap
+            dcc.Graph(id='heatmap1'),  # Placeholder for heatmap
+            dcc.Graph(id='station-plot1')
         ]),
         dcc.Tab(label='Televisión', children=[
             html.Div(dropdown2, style={'marginBottom': '10px'}),
             table2,
-            dcc.Graph(id='heatmap2')  # Placeholder for heatmap
+            dcc.Graph(id='heatmap2'),  # Placeholder for heatmap
+            dcc.Graph(id='station-plot2')
         ]),
         dcc.Tab(label='Radiodifusión AM', children=[
             html.Div(dropdown3, style={'marginBottom': '10px'}),
             table3,
-            dcc.Graph(id='heatmap3')  # Placeholder for heatmap
+            dcc.Graph(id='heatmap3'),  # Placeholder for heatmap
+            dcc.Graph(id='station-plot3')
         ]),
     ])
 
@@ -389,3 +391,34 @@ def update_table(selected_frequencies: list, stored_data: list, table_id: str) -
 
     filtered_df = df_original[df_original['Frecuencia (Hz)'].isin(selected_frequencies)]
     return filtered_df.to_dict('records')
+
+
+def create_station_plot(df, frequency):
+    # Check if frequency is a list and filter the DataFrame accordingly
+    if isinstance(frequency, list):
+        df_filtered = df[df['Frecuencia (Hz)'].isin(frequency)]
+    else:
+        df_filtered = df[df['Frecuencia (Hz)'] == frequency]
+
+    # Create the plot
+    fig = go.Figure(
+        data=go.Scatter(
+            x=df_filtered['Tiempo'],
+            y=df_filtered['Level (dBµV/m)'],
+            mode='lines+markers',
+            name='Level vs. Tiempo'
+        ),
+        layout=go.Layout(
+            title=f'Level (dBµV/m) vs. Tiempo for {frequency} Hz',
+            xaxis_title='Tiempo',
+            yaxis_title='Level (dBµV/m)',
+        )
+    )
+    return fig
+
+
+def update_station_plot(selected_frequency, stored_data):
+    if not selected_frequency or not stored_data:
+        return no_update
+    df = pd.DataFrame.from_records(stored_data)
+    return create_station_plot(df, selected_frequency)

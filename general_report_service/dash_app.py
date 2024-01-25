@@ -1,10 +1,11 @@
 import json
 
-from dash import dcc, html, Input, Output
+from dash import dcc, html, Input, Output, no_update
 from django.conf import settings
 from django_plotly_dash import DjangoDash
 
-from .utils import convert_timestamps_to_strings, create_heatmap_layout, update_table, update_heatmap
+from .utils import convert_timestamps_to_strings, create_heatmap_layout, update_table, update_heatmap, \
+    update_station_plot
 from .services import customize_data
 
 app = DjangoDash(
@@ -144,6 +145,30 @@ def register_callbacks():
     )
     def update_heatmap3(selected_frequencies, stored_data):
         return update_heatmap(selected_frequencies, stored_data)
+
+    @app.callback(
+        Output('station-plot1', 'figure'),
+        [Input('frequency-dropdown1', 'value'),
+         Input('store-df-original1', 'data')]
+    )
+    def update_station_plot1(selected_frequency, stored_data):
+        return update_station_plot(selected_frequency, stored_data)
+
+    @app.callback(
+        Output('station-plot2', 'figure'),
+        [Input('frequency-dropdown2', 'value'),
+         Input('store-df-original2', 'data')]
+    )
+    def update_station_plot2(selected_frequency, stored_data):
+        return update_station_plot(selected_frequency, stored_data)
+
+    @app.callback(
+        Output('station-plot3', 'figure'),
+        [Input('frequency-dropdown3', 'value'),
+         Input('store-df-original3', 'data')]
+    )
+    def update_station_plot3(selected_frequency, stored_data):
+        return update_station_plot(selected_frequency, stored_data)
 
 
 register_callbacks()
