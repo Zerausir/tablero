@@ -176,7 +176,7 @@ def create_frequency_dropdown(dropdown_id: str, dataframe: pd.DataFrame, placeho
     )
 
 
-def create_heatmap_data(df: pd.DataFrame) -> dict:
+def create_heatmap_data(df: pd.DataFrame, selected_frequencies=None) -> dict:
     """
     Create heatmap data from a DataFrame. The DataFrame is expected to have 'Level (dBµV/m)',
     'Tiempo', and 'Frecuencia (Hz)' columns. If the DataFrame is empty, an empty figure is returned.
@@ -200,6 +200,13 @@ def create_heatmap_data(df: pd.DataFrame) -> dict:
         for freq, station in heatmap_data.columns
     ]
 
+    if selected_frequencies:
+        bottom_margin = 100  # Smaller margin if frequencies are selected
+        plot_height = 600  # Smaller height if frequencies are selected
+    else:
+        bottom_margin = 400  # Larger margin to accommodate x-axis labels
+        plot_height = 900  # Larger height for initial view
+
     return {
         'data': [go.Heatmap(
             z=heatmap_data.values[::-1],
@@ -222,11 +229,11 @@ def create_heatmap_data(df: pd.DataFrame) -> dict:
             margin=go.layout.Margin(
                 l=100,
                 r=100,
-                b=400,
+                b=bottom_margin,
                 t=100,
             ),
-            autosize=True,  # Allow plot to resize based on the outer div
-            height=900,  # You can adjust this height if the plot is too cramped
+            autosize=True,
+            height=plot_height,
         )
     }
 
@@ -256,20 +263,17 @@ def create_heatmap_layout(df_original1: pd.DataFrame, df_original2: pd.DataFrame
         dcc.Tab(label='Radiodifusión FM', children=[
             html.Div(dropdown1, style={'marginBottom': '10px'}),
             table1,
-            dcc.Graph(id='heatmap1'),  # Placeholder for heatmap
-            dcc.Graph(id='station-plot1')
+            dcc.Graph(id='heatmap1'),
         ]),
         dcc.Tab(label='Televisión', children=[
             html.Div(dropdown2, style={'marginBottom': '10px'}),
             table2,
-            dcc.Graph(id='heatmap2'),  # Placeholder for heatmap
-            dcc.Graph(id='station-plot2')
+            dcc.Graph(id='heatmap2'),
         ]),
         dcc.Tab(label='Radiodifusión AM', children=[
             html.Div(dropdown3, style={'marginBottom': '10px'}),
             table3,
-            dcc.Graph(id='heatmap3'),  # Placeholder for heatmap
-            dcc.Graph(id='station-plot3')
+            dcc.Graph(id='heatmap3'),
         ]),
     ])
 
@@ -417,8 +421,33 @@ def create_station_plot(df, frequency):
     return fig
 
 
-def update_station_plot(selected_frequency, stored_data):
-    if not selected_frequency or not stored_data:
+def update_station_plot(selected_frequencies, stored_data):
+    if not selected_frequencies or not stored_data:
         return no_update
+
+    # Convert stored_data to DataFrame
     df = pd.DataFrame.from_records(stored_data)
-    return create_station_plot(df, selected_frequency)
+
+    # Container for the plots
+    plots = []
+
+    # Create a plot for each selected frequency
+    for frequency in selected_frequencies:
+        df_filtered = df[df['Frecuencia (Hz)'] == frequency]
+        fig = go.Figure(
+            data=go.Scatter(
+                x=df_filtered['Tiempo'],
+                y=df_filtered['Level (dBµV/m)'],
+                mode='lines+markers',
+                name=f'Level vs. Tiempo for {frequency} Hz'
+            ),
+            layout=go.Layout(
+                title=f'Level (dBµV/m) vs. Tiempo for {frequency} Hz',
+                xaxis_title='Tiempo',
+                yaxis_title='Level (dBµV/m)',
+            )
+        )
+        plots.append(dcc.Graph(figure=fig))
+
+    # Return a Div containing all the plots
+    return html.Div(plots)

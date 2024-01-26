@@ -1,6 +1,6 @@
 import json
 
-from dash import dcc, html, Input, Output, no_update
+from dash import dcc, html, Input, Output
 from django.conf import settings
 from django_plotly_dash import DjangoDash
 
@@ -57,6 +57,9 @@ def define_app_layout():
         dcc.Store(id='store-df-original4'),
         dcc.Store(id='store-df-original5'),
         dcc.Store(id='store-df-original6'),
+
+        html.Div(id='station-plots-container'),
+
     ], style={'height': '100vh'})
 
 
@@ -147,28 +150,28 @@ def register_callbacks():
         return update_heatmap(selected_frequencies, stored_data)
 
     @app.callback(
-        Output('station-plot1', 'figure'),
+        Output('station-plots-container', 'children'),
         [Input('frequency-dropdown1', 'value'),
-         Input('store-df-original1', 'data')]
-    )
-    def update_station_plot1(selected_frequency, stored_data):
-        return update_station_plot(selected_frequency, stored_data)
-
-    @app.callback(
-        Output('station-plot2', 'figure'),
-        [Input('frequency-dropdown2', 'value'),
-         Input('store-df-original2', 'data')]
-    )
-    def update_station_plot2(selected_frequency, stored_data):
-        return update_station_plot(selected_frequency, stored_data)
-
-    @app.callback(
-        Output('station-plot3', 'figure'),
-        [Input('frequency-dropdown3', 'value'),
+         Input('store-df-original1', 'data'),
+         Input('frequency-dropdown2', 'value'),
+         Input('store-df-original2', 'data'),
+         Input('frequency-dropdown3', 'value'),
          Input('store-df-original3', 'data')]
     )
-    def update_station_plot3(selected_frequency, stored_data):
-        return update_station_plot(selected_frequency, stored_data)
+    def display_station_plots(freq1, data1, freq2, data2, freq3, data3):
+        # Container for all plots
+        all_plots = []
+
+        # Generate and append plots for each frequency dropdown (if selected)
+        if freq1 and data1:
+            all_plots.append(update_station_plot(freq1, data1))
+        if freq2 and data2:
+            all_plots.append(update_station_plot(freq2, data2))
+        if freq3 and data3:
+            all_plots.append(update_station_plot(freq3, data3))
+
+        # Return a Div containing all the plots
+        return html.Div(all_plots)
 
 
 register_callbacks()
