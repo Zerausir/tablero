@@ -150,28 +150,34 @@ def register_callbacks():
         return update_heatmap(selected_frequencies, stored_data)
 
     @app.callback(
-        Output('station-plots-container', 'children'),
+        Output('station-plots-container-fm', 'children'),
         [Input('frequency-dropdown1', 'value'),
-         Input('store-df-original1', 'data'),
-         Input('frequency-dropdown2', 'value'),
-         Input('store-df-original2', 'data'),
-         Input('frequency-dropdown3', 'value'),
+         Input('store-df-original1', 'data')]
+    )
+    def update_fm_station_plot(freq1, data1):
+        if freq1 and data1:
+            return html.Div(update_station_plot(freq1, data1))
+        return html.Div()
+
+    @app.callback(
+        Output('station-plots-container-tv', 'children'),
+        [Input('frequency-dropdown2', 'value'),
+         Input('store-df-original2', 'data')]
+    )
+    def update_tv_station_plot(freq2, data2):
+        if freq2 and data2:
+            return html.Div(update_station_plot(freq2, data2))
+        return html.Div()
+
+    @app.callback(
+        Output('station-plots-container-am', 'children'),
+        [Input('frequency-dropdown3', 'value'),
          Input('store-df-original3', 'data')]
     )
-    def display_station_plots(freq1, data1, freq2, data2, freq3, data3):
-        # Container for all plots
-        all_plots = []
-
-        # Generate and append plots for each frequency dropdown (if selected)
-        if freq1 and data1:
-            all_plots.append(update_station_plot(freq1, data1))
-        if freq2 and data2:
-            all_plots.append(update_station_plot(freq2, data2))
+    def update_am_station_plot(freq3, data3):
         if freq3 and data3:
-            all_plots.append(update_station_plot(freq3, data3))
-
-        # Return a Div containing all the plots
-        return html.Div(all_plots)
+            return html.Div(update_station_plot(freq3, data3))
+        return html.Div()
 
 
 register_callbacks()

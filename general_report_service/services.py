@@ -64,6 +64,8 @@ def customize_data(selected_options: dict) -> tuple[
     df_original1 = df_original1.sort_values(by='Tiempo', ascending=False)
     df_clean1 = df_clean1.drop(
         columns=['Offset (Hz)', 'FM (Hz)', 'Bandwidth (Hz)', 'Potencia', 'BW Asignado'])
+    df_clean1 = df_clean1.groupby(['Frecuencia (Hz)', pd.Grouper(key='Tiempo', freq='D')]).agg(
+        {'Level (dBµV/m)': 'max', 'Estación': 'first'}).reset_index()
 
     df_origin2 = pd.DataFrame(df_data2, columns=settings.COLUMNS_TV)
     df_origin2['Tiempo'] = pd.to_datetime(df_origin2['Tiempo'], format="%d/%m/%Y %H:%M:%S.%f")
@@ -72,6 +74,8 @@ def customize_data(selected_options: dict) -> tuple[
     df_original2 = df_original2.sort_values(by='Tiempo', ascending=False)
     df_clean2 = df_clean2.drop(
         columns=['Offset (Hz)', 'AM (%)', 'Bandwidth (Hz)', 'Canal (Número)', 'Analógico/Digital'])
+    df_clean2 = df_clean2.groupby(['Frecuencia (Hz)', pd.Grouper(key='Tiempo', freq='D')]).agg(
+        {'Level (dBµV/m)': 'max', 'Estación': 'first'}).reset_index()
 
     if df_data3 is not None:
         df_origin3 = pd.DataFrame(df_data3, columns=settings.COLUMNS_AM)
@@ -81,6 +85,8 @@ def customize_data(selected_options: dict) -> tuple[
         df_original3 = df_original3.sort_values(by='Tiempo', ascending=False)
         df_clean3 = df_clean3.drop(
             columns=['Offset (Hz)', 'AM (%)', 'Bandwidth (Hz)'])
+        df_clean3 = df_clean3.groupby(['Frecuencia (Hz)', pd.Grouper(key='Tiempo', freq='D')]).agg(
+            {'Level (dBµV/m)': 'max', 'Estación': 'first'}).reset_index()
     else:
         df_clean3 = pd.DataFrame()
         df_original3 = pd.DataFrame()
@@ -294,11 +300,13 @@ def simplify_fm_broadcasting(df: pd.DataFrame, dfau: pd.DataFrame, autori: str) 
         pd.DataFrame: Simplified DataFrame.
     """
     df_authorization = process_authorization_am_fm_df(dfau, 87700000, 108100000, autori)
+    df = df.groupby(['Frecuencia (Hz)', pd.Grouper(key='Tiempo', freq='D')]).agg(
+        {'Level (dBµV/m)': 'max', 'Bandwidth (Hz)': safe_average, 'Estación': 'first'})
     df_merge_data_aut = merge_authorization_with_data(df_authorization, df, ['Tiempo', 'Frecuencia (Hz)'])
-    df_data_aut = df_merge_data_aut.groupby(['Frecuencia (Hz)', pd.Grouper(key='Tiempo', freq='D')]).agg(
-        {'Level (dBµV/m)': 'max', 'Bandwidth (Hz)': safe_average, 'Fecha_fin': 'max', 'Estación': 'first'})
-    df_data_aut = df_data_aut.reset_index().sort_values(by='Tiempo', ascending=True)
-    new_order = ['Tiempo', 'Frecuencia (Hz)', 'Estación', 'Level (dBµV/m)', 'Bandwidth (Hz)', 'Fecha_fin']
+    df_data_aut = df_merge_data_aut.reset_index().sort_values(by='Tiempo', ascending=True)
+    df_data_aut = df_data_aut.rename(columns={'Fecha_inicio': 'Inicio Autorización', 'Fecha_fin': 'Fin Autorización'})
+    new_order = ['Tiempo', 'Frecuencia (Hz)', 'Estación', 'Level (dBµV/m)', 'Bandwidth (Hz)', 'Inicio Autorización',
+                 'Fin Autorización']
     df_data_aut = df_data_aut[new_order]
     return df_data_aut
 
@@ -316,15 +324,15 @@ def simplify_tv_broadcasting(df: pd.DataFrame, dfau: pd.DataFrame, autori: str) 
         pd.DataFrame: Simplified DataFrame.
     """
     df_authorization = process_authorization_tv_df(dfau, 2, 51, autori)
-    df_merge_data_aut = merge_authorization_with_data(df_authorization, df, ['Tiempo', 'Canal (Número)'])
-    df_data_aut = df_merge_data_aut.groupby(['Frecuencia (Hz)', pd.Grouper(key='Tiempo', freq='D')]).agg(
-        {'Level (dBµV/m)': 'max', 'Fecha_fin': 'max', 'Canal (Número)': 'first', 'Analógico/Digital': 'first',
+    df = df.groupby(['Frecuencia (Hz)', pd.Grouper(key='Tiempo', freq='D')]).agg(
+        {'Frecuencia (Hz)': 'max', 'Level (dBµV/m)': 'max', 'Canal (Número)': 'first', 'Analógico/Digital': 'first',
          'Estación': 'first'})
-    df_data_aut = df_data_aut.reset_index().sort_values(by='Tiempo', ascending=True)
+    df_merge_data_aut = merge_authorization_with_data(df_authorization, df, ['Tiempo', 'Canal (Número)'])
+    df_data_aut = df_merge_data_aut.reset_index().sort_values(by='Tiempo', ascending=True)
+    df_data_aut = df_data_aut.rename(columns={'Fecha_inicio': 'Inicio Autorización', 'Fecha_fin': 'Fin Autorización'})
     new_order = ['Tiempo', 'Frecuencia (Hz)', 'Estación', 'Canal (Número)', 'Analógico/Digital', 'Level (dBµV/m)',
-                 'Fecha_fin']
+                 'Inicio Autorización', 'Fin Autorización']
     df_data_aut = df_data_aut[new_order]
-
     return df_data_aut
 
 
@@ -341,77 +349,90 @@ def simplify_am_broadcasting(df: pd.DataFrame, dfau: pd.DataFrame, autori: str) 
         pd.DataFrame: Simplified DataFrame.
     """
     df_authorization = process_authorization_am_fm_df(dfau, 570000, 1590000, autori)
+    df = df.groupby(['Frecuencia (Hz)', pd.Grouper(key='Tiempo', freq='D')]).agg(
+        {'Level (dBµV/m)': 'max', 'Bandwidth (Hz)': safe_average, 'Estación': 'first'})
     df_merge_data_aut = merge_authorization_with_data(df_authorization, df, ['Tiempo', 'Frecuencia (Hz)'])
-    df_data_aut = df_merge_data_aut.groupby(['Frecuencia (Hz)', pd.Grouper(key='Tiempo', freq='D')]).agg(
-        {'Level (dBµV/m)': 'max', 'Bandwidth (Hz)': safe_average, 'Fecha_fin': 'max', 'Estación': 'first'})
-    df_data_aut = df_data_aut.reset_index().sort_values(by='Tiempo', ascending=True)
-    new_order = ['Tiempo', 'Frecuencia (Hz)', 'Estación', 'Level (dBµV/m)', 'Bandwidth (Hz)', 'Fecha_fin']
+    df_data_aut = df_merge_data_aut.reset_index().sort_values(by='Tiempo', ascending=True)
+    df_data_aut = df_data_aut.rename(columns={'Fecha_inicio': 'Inicio Autorización', 'Fecha_fin': 'Fin Autorización'})
+    new_order = ['Tiempo', 'Frecuencia (Hz)', 'Estación', 'Level (dBµV/m)', 'Bandwidth (Hz)', 'Inicio Autorización',
+                 'Fin Autorización']
     df_data_aut = df_data_aut[new_order]
     return df_data_aut
 
 
 def process_authorization_am_fm_df(dfau: pd.DataFrame, freq_range_start: int, freq_range_end: int,
                                    city: str) -> pd.DataFrame:
-    """
-    Process authorization data for AM/FM broadcasting.
+    # Filter the dataframe based on frequency range and city
+    dfau_filtered = dfau[(dfau.freq >= freq_range_start) & (dfau.freq <= freq_range_end) & (dfau['ciu'] == city)]
 
-    Args:
-        dfau (pd.DataFrame): Authorization DataFrame.
-        freq_range_start (int): Start of frequency range.
-        freq_range_end (int): End of frequency range.
-        city (str): City name.
+    # Temporarily rename 'Fecha_inicio' to 'Fecha_inicio_orig'
+    dfau_filtered = dfau_filtered.rename(columns={'Fecha_inicio': 'Fecha_inicio_orig'})
 
-    Returns:
-        pd.DataFrame: Processed DataFrame.
-    """
-    dfau_filtered = dfau[(dfau.freq >= freq_range_start) & (dfau.freq <= freq_range_end)]
-    dfau_filtered = dfau_filtered.rename(columns={'freq': 'Frecuencia (Hz)', 'Fecha_inicio': 'Tiempo'})
-    dfau_filtered = dfau_filtered.loc[dfau_filtered['ciu'] == city]
+    # Create the 'Tiempo' column based on the original 'Fecha_inicio'
+    dfau_filtered['Tiempo'] = dfau_filtered['Fecha_inicio_orig']
+
+    # Drop unnecessary 'est' column
     dfau_filtered = dfau_filtered.drop(columns=['est'])
-    dfau_filtered['Frecuencia (Hz)'] = dfau_filtered['Frecuencia (Hz)'].astype('float64')
 
+    # Convert 'freq' to 'Frecuencia (Hz)'
+    dfau_filtered['Frecuencia (Hz)'] = dfau_filtered['freq'].astype('float64')
+
+    # Generate rows for each day within the authorization period
     result_df = []
     for index, row in dfau_filtered.iterrows():
         for t in pd.date_range(start=row['Tiempo'], end=row['Fecha_fin']):
             result_df.append(
                 (row['Frecuencia (Hz)'], row['Tipo'], row['Plazo'], t, row['Oficio'], row['Fecha_oficio'],
-                 row['Fecha_fin'])
+                 row['Fecha_inicio_orig'], row['Fecha_fin'])
             )
 
-    return pd.DataFrame(result_df, columns=(
-        'Frecuencia (Hz)', 'Tipo', 'Plazo', 'Tiempo', 'Oficio', 'Fecha_oficio', 'Fecha_fin'))
+    # Create DataFrame from the result list
+    result_df = pd.DataFrame(result_df, columns=(
+        'Frecuencia (Hz)', 'Tipo', 'Plazo', 'Tiempo', 'Oficio', 'Fecha_oficio', 'Fecha_inicio', 'Fecha_fin'))
+
+    # Group and aggregate as necessary
+    result_df = result_df.groupby(['Frecuencia (Hz)', pd.Grouper(key='Tiempo', freq='D')]).agg(
+        {'Tipo': 'first', 'Plazo': 'max', 'Oficio': 'first', 'Fecha_oficio': 'max', 'Fecha_inicio': 'max',
+         'Fecha_fin': 'max'}).reset_index()
+
+    return result_df
 
 
 def process_authorization_tv_df(dfau: pd.DataFrame, freq_range_start: int, freq_range_end: int,
                                 city: str) -> pd.DataFrame:
-    """
-    Process authorization data for TV broadcasting.
+    dfau_filtered = dfau[(dfau.freq >= freq_range_start) & (dfau.freq <= freq_range_end) & (dfau['ciu'] == city)]
 
-    Args:
-        dfau (pd.DataFrame): Authorization DataFrame.
-        freq_range_start (int): Start of frequency range.
-        freq_range_end (int): End of frequency range.
-        city (str): City name.
+    # Temporarily rename 'Fecha_inicio' to 'Fecha_inicio_orig'
+    dfau_filtered = dfau_filtered.rename(columns={'Fecha_inicio': 'Fecha_inicio_orig'})
 
-    Returns:
-        pd.DataFrame: Processed DataFrame.
-    """
-    dfau_filtered = dfau[(dfau.freq >= freq_range_start) & (dfau.freq <= freq_range_end)]
-    dfau_filtered = dfau_filtered.rename(columns={'freq': 'Canal (Número)', 'Fecha_inicio': 'Tiempo'})
-    dfau_filtered = dfau_filtered.loc[dfau_filtered['ciu'] == city]
+    # Create the 'Tiempo' column based on the original 'Fecha_inicio'
+    dfau_filtered['Tiempo'] = dfau_filtered['Fecha_inicio_orig']
+
+    # Drop unnecessary 'est' column
     dfau_filtered = dfau_filtered.drop(columns=['est'])
-    dfau_filtered['Canal (Número)'] = dfau_filtered['Canal (Número)'].astype('float64')
 
+    # Convert 'freq' to 'Canal (Número)'
+    dfau_filtered['Canal (Número)'] = dfau_filtered['freq'].astype('float64')
+
+    # Generate rows for each day within the authorization period
     result_df = []
     for index, row in dfau_filtered.iterrows():
         for t in pd.date_range(start=row['Tiempo'], end=row['Fecha_fin']):
             result_df.append(
                 (row['Canal (Número)'], row['Tipo'], row['Plazo'], t, row['Oficio'], row['Fecha_oficio'],
-                 row['Fecha_fin'])
+                 row['Fecha_inicio_orig'], row['Fecha_fin'])
             )
 
-    return pd.DataFrame(result_df, columns=(
-        'Canal (Número)', 'Tipo', 'Plazo', 'Tiempo', 'Oficio', 'Fecha_oficio', 'Fecha_fin'))
+    # Create DataFrame from the result list
+    result_df = pd.DataFrame(result_df, columns=(
+        'Canal (Número)', 'Tipo', 'Plazo', 'Tiempo', 'Oficio', 'Fecha_oficio', 'Fecha_inicio', 'Fecha_fin'))
+
+    # Group and aggregate as necessary
+    result_df = result_df.groupby(['Canal (Número)', pd.Grouper(key='Tiempo', freq='D')]).agg(
+        {'Tipo': 'first', 'Plazo': 'max', 'Oficio': 'first', 'Fecha_oficio': 'max', 'Fecha_inicio': 'max',
+         'Fecha_fin': 'max'}).reset_index()
+
+    return result_df
 
 
 def merge_authorization_with_data(df_authorization: pd.DataFrame, df_data: pd.DataFrame,
@@ -427,10 +448,21 @@ def merge_authorization_with_data(df_authorization: pd.DataFrame, df_data: pd.Da
     Returns:
         pd.DataFrame: Merged DataFrame.
     """
-    df_authorization = df_authorization.rename(columns={'Fecha_inicio': 'Tiempo'})
+    # Merge authorization and broadcasting data
+    merged_df = df_authorization.merge(df_data, how='right', on=merge_columns)
 
-    result_df = df_authorization.merge(df_data, how='right', on=merge_columns)
-    return result_df
+    # Function to adjust authorization dates based on 'Tiempo'
+    def adjust_authorization_dates(row):
+        if row['Fecha_inicio'] <= row['Tiempo'] <= row['Fecha_fin']:
+            return row['Fecha_inicio'], row['Fecha_fin']
+        else:
+            return '-', '-'
+
+    # Apply the function to each row
+    merged_df[['Fecha_inicio', 'Fecha_fin']] = merged_df.apply(
+        adjust_authorization_dates, axis=1, result_type='expand')
+
+    return merged_df
 
 
 def create_pivot_table(df: pd.DataFrame, index: list, values: list, columns: list,

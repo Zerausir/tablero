@@ -41,30 +41,27 @@ def convert_start_date(date_time: str) -> datetime.datetime:
 
 
 def convert_timestamps_to_strings(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Convert timestamps in the DataFrame to strings and handle MultiIndex for columns and index.
-    This function specifically targets 'Tiempo' columns for conversion and also adjusts
-    MultiIndex headers and indexes if present.
+    date_columns = ['Tiempo', 'Inicio Autorización', 'Fin Autorización']
+    date_format = '%Y-%m-%d'  # Replace with your actual date format
 
-    Args:
-        df (pd.DataFrame): The DataFrame whose timestamps are to be converted.
+    for col in date_columns:
+        if col in df.columns:
+            # Convert column to datetime with specified format, coercing errors to NaT
+            df[col] = pd.to_datetime(df[col], format=date_format, errors='coerce')
+            # Format datetime as string, ignoring NaT (which become NaT again)
+            df[col] = df[col].dt.strftime(date_format).replace('NaT', '-')
 
-    Returns:
-        pd.DataFrame: DataFrame with timestamps converted to string format.
-    """
-    if 'Tiempo' in df.columns:
-        df['Tiempo'] = df['Tiempo'].dt.strftime('%Y-%m-%d')
-
+    # Handle MultiIndex for columns and index, if applicable
     if isinstance(df.columns, pd.MultiIndex):
         df.columns = df.columns.map(
-            lambda x: [(y.strftime('%Y-%m-%d') if isinstance(y, pd.Timestamp) else y) for y in x])
+            lambda x: [(y.strftime(date_format) if isinstance(y, pd.Timestamp) else y) for y in x])
     else:
-        df.columns = [x.strftime('%Y-%m-%d') if isinstance(x, pd.Timestamp) else x for x in df.columns]
+        df.columns = [x.strftime(date_format) if isinstance(x, pd.Timestamp) else x for x in df.columns]
 
     if isinstance(df.index, pd.MultiIndex):
-        df.index = df.index.map(lambda x: [(y.strftime('%Y-%m-%d') if isinstance(y, pd.Timestamp) else y) for y in x])
+        df.index = df.index.map(lambda x: [(y.strftime(date_format) if isinstance(y, pd.Timestamp) else y) for y in x])
     else:
-        df.index = [x.strftime('%Y-%m-%d') if isinstance(x, pd.Timestamp) else x for x in df.index]
+        df.index = [x.strftime(date_format) if isinstance(x, pd.Timestamp) else x for x in df.index]
 
     return df
 
@@ -259,21 +256,24 @@ def create_heatmap_layout(df_original1: pd.DataFrame, df_original2: pd.DataFrame
     table2 = create_dash_datatable('table2', df_original2)
     table3 = create_dash_datatable('table3', df_original3)
 
-    tabs_layout = dcc.Tabs([
+    tabs_layout = dcc.Tabs(id='tabs-container', children=[
         dcc.Tab(label='Radiodifusión FM', children=[
             html.Div(dropdown1, style={'marginBottom': '10px'}),
             table1,
             dcc.Graph(id='heatmap1'),
+            html.Div(id='station-plots-container-fm'),  # Unique container for FM
         ]),
         dcc.Tab(label='Televisión', children=[
             html.Div(dropdown2, style={'marginBottom': '10px'}),
             table2,
             dcc.Graph(id='heatmap2'),
+            html.Div(id='station-plots-container-tv'),  # Unique container for TV
         ]),
         dcc.Tab(label='Radiodifusión AM', children=[
             html.Div(dropdown3, style={'marginBottom': '10px'}),
             table3,
             dcc.Graph(id='heatmap3'),
+            html.Div(id='station-plots-container-am'),  # Unique container for AM
         ]),
     ])
 
