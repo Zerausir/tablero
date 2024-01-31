@@ -60,8 +60,8 @@ def customize_data(selected_options: dict) -> tuple[
     df_origin1 = pd.DataFrame(df_data1, columns=settings.COLUMNS_FM)
     df_origin1['Tiempo'] = pd.to_datetime(df_origin1['Tiempo'], format="%d/%m/%Y %H:%M:%S.%f")
     df_clean1 = clean_data(fecha_inicio, fecha_fin, df_origin1, sheet_name1)
-    df_original1 = simplify_fm_broadcasting(df_clean1, dfau, autori).fillna('-')
-    df_original1 = df_original1.sort_values(by='Tiempo', ascending=False)
+    df_original1 = simplify_fm_broadcasting(df_clean1, dfau, autori)
+    df_original1 = df_original1.sort_values(by='Tiempo', ascending=False).fillna('-')
     df_clean1 = df_clean1.drop(
         columns=['Offset (Hz)', 'FM (Hz)', 'Bandwidth (Hz)', 'Potencia', 'BW Asignado'])
     df_clean1 = df_clean1.groupby(['Frecuencia (Hz)', pd.Grouper(key='Tiempo', freq='D')]).agg(
@@ -70,8 +70,8 @@ def customize_data(selected_options: dict) -> tuple[
     df_origin2 = pd.DataFrame(df_data2, columns=settings.COLUMNS_TV)
     df_origin2['Tiempo'] = pd.to_datetime(df_origin2['Tiempo'], format="%d/%m/%Y %H:%M:%S.%f")
     df_clean2 = clean_data(fecha_inicio, fecha_fin, df_origin2, sheet_name2)
-    df_original2 = simplify_tv_broadcasting(df_clean2, dfau, autori).fillna('-')
-    df_original2 = df_original2.sort_values(by='Tiempo', ascending=False)
+    df_original2 = simplify_tv_broadcasting(df_clean2, dfau, autori)
+    df_original2 = df_original2.sort_values(by='Tiempo', ascending=False).fillna('-')
     df_clean2 = df_clean2.drop(
         columns=['Offset (Hz)', 'AM (%)', 'Bandwidth (Hz)', 'Canal (Número)', 'Analógico/Digital'])
     df_clean2 = df_clean2.groupby(['Frecuencia (Hz)', pd.Grouper(key='Tiempo', freq='D')]).agg(
@@ -81,8 +81,8 @@ def customize_data(selected_options: dict) -> tuple[
         df_origin3 = pd.DataFrame(df_data3, columns=settings.COLUMNS_AM)
         df_origin3['Tiempo'] = pd.to_datetime(df_origin3['Tiempo'], format="%d/%m/%Y %H:%M:%S.%f")
         df_clean3 = clean_data(fecha_inicio, fecha_fin, df_origin3, sheet_name3)
-        df_original3 = simplify_am_broadcasting(df_clean3, dfau, autori).fillna('-')
-        df_original3 = df_original3.sort_values(by='Tiempo', ascending=False)
+        df_original3 = simplify_am_broadcasting(df_clean3, dfau, autori)
+        df_original3 = df_original3.sort_values(by='Tiempo', ascending=False).fillna('-')
         df_clean3 = df_clean3.drop(
             columns=['Offset (Hz)', 'AM (%)', 'Bandwidth (Hz)'])
         df_clean3 = df_clean3.groupby(['Frecuencia (Hz)', pd.Grouper(key='Tiempo', freq='D')]).agg(
@@ -301,12 +301,13 @@ def simplify_fm_broadcasting(df: pd.DataFrame, dfau: pd.DataFrame, autori: str) 
     """
     df_authorization = process_authorization_am_fm_df(dfau, 87700000, 108100000, autori)
     df = df.groupby(['Frecuencia (Hz)', pd.Grouper(key='Tiempo', freq='D')]).agg(
-        {'Level (dBµV/m)': 'max', 'Bandwidth (Hz)': safe_average, 'Estación': 'first'})
+        {'Level (dBµV/m)': 'max', 'Bandwidth (Hz)': safe_average, 'Estación': 'first', 'Potencia': 'first',
+         'BW Asignado': 'max'})
     df_merge_data_aut = merge_authorization_with_data(df_authorization, df, ['Tiempo', 'Frecuencia (Hz)'])
     df_data_aut = df_merge_data_aut.reset_index().sort_values(by='Tiempo', ascending=True)
     df_data_aut = df_data_aut.rename(columns={'Fecha_inicio': 'Inicio Autorización', 'Fecha_fin': 'Fin Autorización'})
-    new_order = ['Tiempo', 'Frecuencia (Hz)', 'Estación', 'Level (dBµV/m)', 'Bandwidth (Hz)', 'Inicio Autorización',
-                 'Fin Autorización']
+    new_order = ['Tiempo', 'Frecuencia (Hz)', 'Estación', 'Potencia', 'BW Asignado', 'Level (dBµV/m)', 'Bandwidth (Hz)',
+                 'Inicio Autorización', 'Fin Autorización']
     df_data_aut = df_data_aut[new_order]
     return df_data_aut
 

@@ -397,56 +397,538 @@ def update_table(selected_frequencies: list, stored_data: list, table_id: str) -
     return filtered_df.to_dict('records')
 
 
-def create_station_plot(df, frequency):
-    # Check if frequency is a list and filter the DataFrame accordingly
-    if isinstance(frequency, list):
-        df_filtered = df[df['Frecuencia (Hz)'].isin(frequency)]
-    else:
-        df_filtered = df[df['Frecuencia (Hz)'] == frequency]
-
-    # Create the plot
-    fig = go.Figure(
-        data=go.Scatter(
-            x=df_filtered['Tiempo'],
-            y=df_filtered['Level (dBµV/m)'],
-            mode='lines+markers',
-            name='Level vs. Tiempo'
-        ),
-        layout=go.Layout(
-            title=f'Level (dBµV/m) vs. Tiempo for {frequency} Hz',
-            xaxis_title='Tiempo',
-            yaxis_title='Level (dBµV/m)',
-        )
-    )
-    return fig
-
-
-def update_station_plot(selected_frequencies, stored_data):
+def update_station_plot_fm(selected_frequencies, stored_data, autorizations_selected, ciudad):
     if not selected_frequencies or not stored_data:
         return no_update
 
     # Convert stored_data to DataFrame
     df = pd.DataFrame.from_records(stored_data)
-
+    df['Tiempo'] = pd.to_datetime(df['Tiempo'], errors='coerce')
+    df = df.sort_values(by='Tiempo', ascending=True)
+    df['Tiempo'] = df['Tiempo'].dt.strftime('%Y-%m-%d')
     # Container for the plots
     plots = []
 
     # Create a plot for each selected frequency
     for frequency in selected_frequencies:
         df_filtered = df[df['Frecuencia (Hz)'] == frequency]
-        fig = go.Figure(
-            data=go.Scatter(
-                x=df_filtered['Tiempo'],
-                y=df_filtered['Level (dBµV/m)'],
-                mode='lines+markers',
-                name=f'Level vs. Tiempo for {frequency} Hz'
+        df_filtered = df_filtered.rename(
+            columns={'Frecuencia (Hz)': 'freq', 'Estación': 'est', 'Potencia': 'pot', 'BW Asignado': 'bw',
+                     'Level (dBµV/m)': 'level', 'Bandwidth (Hz)': 'bandwidth', 'Inicio Autorización': 'Fecha_inicio',
+                     'Fin Autorización': 'Fecha_fin'})
+        df_filtered['Fecha_inicio'] = df_filtered['Fecha_inicio'].fillna(0)
+        df_filtered['Fecha_fin'] = df_filtered['Fecha_fin'].fillna(0)
+        nombre = df_filtered['est'].iloc[0]
+        pot = df_filtered['pot'].iloc[0]
+        bw = df_filtered['bw'].iloc[0]
+        pot = 0 if df_filtered['pot'].iloc[0] == '-' else 1
+        bw = 220 if df_filtered['bw'].iloc[0] == '-' else int(df_filtered['bw'].iloc[0])
+
+        def minus(row):
+            try:
+                level = float(row['level'])  # Convert level to float
+            except ValueError:
+                return 0  # Return 0 if conversion fails
+
+            if level > 0 and level < 30:
+                return level
+            return 0
+
+        def bet(row):
+            try:
+                level = float(row['level'])  # Convert level to float
+            except ValueError:
+                return 0  # Return 0 if conversion fails
+
+            if pot == 0 and bw == 220:
+                if level >= 30 and level < 54:
+                    return level
+                return 0
+            elif pot == 0 and bw == 200:
+                if level >= 30 and level < 54:
+                    return level
+                return 0
+            elif pot == 0 and bw == 180:
+                if level >= 30 and level < 48:
+                    return level
+            elif pot == 1:
+                if level >= 30 and level < 43:
+                    return level
+                return 0
+            return 0
+
+        def plus(row):
+            try:
+                level = float(row['level'])  # Convert level to float
+            except ValueError:
+                return 0  # Return 0 if conversion fails
+
+            if pot == 0 and bw == 220:
+                if level >= 54:
+                    return level
+                return 0
+            elif pot == 0 and bw == 200:
+                if level >= 54:
+                    return level
+                return 0
+            elif pot == 0 and bw == 180:
+                if level >= 48:
+                    return level
+            elif pot == 1:
+                if level >= 43:
+                    return level
+                return 0
+            return 0
+
+        def valor(row):
+            """function to return a specific value if the value in every row of the column 'level' meet the
+            condition"""
+            if row['level'] == '-':
+                return 120
+            return 0
+
+        def aut(row):
+            """function to return a specific value if the value in every row of the column 'level' meet the
+            condition"""
+            if row['Fecha_fin'] != 0 and row['level'] == 0:
+                return 0
+            elif row['Fecha_fin'] != 0 and row['level'] != 0:
+                return row['level']
+            return 0
+
+        """create a new column in the df_filtered frame for every definition (minus, bet, plus, valor, aut)"""
+        df_filtered['minus'] = df_filtered.apply(lambda row: minus(row), axis=1)
+        df_filtered['bet'] = df_filtered.apply(lambda row: bet(row), axis=1)
+        df_filtered['plus'] = df_filtered.apply(lambda row: plus(row), axis=1)
+        df_filtered['valor'] = df_filtered.apply(lambda row: valor(row), axis=1)
+        df_filtered['aut'] = df_filtered.apply(lambda row: aut(row), axis=1)
+        # Creating the plot
+        fig = go.Figure()
+
+        colors = {
+            'Plus': '#7fc97f',  # Example color, similar to 'Accent'
+            'Bet': '#FFD700',  # Example color, similar to 'Set3_r'
+            'Minus': '#ff9999',  # Example color, similar to 'Pastel1'
+            'Valor': '#beaed4',  # Example color, similar to 'Paired'
+            'Autorizaciones': '#386cb0'  # Example color, similar to 'Set2_r'
+        }
+
+        # Adding area plots with custom colors
+        fig.add_trace(go.Scatter(x=df_filtered.index, y=df_filtered['plus'], fill='tozeroy', name='Plus',
+                                 line=dict(color=colors['Plus'])))
+        fig.add_trace(go.Scatter(x=df_filtered.index, y=df_filtered['bet'], fill='tozeroy', name='Bet',
+                                 line=dict(color=colors['Bet'])))
+        fig.add_trace(go.Scatter(x=df_filtered.index, y=df_filtered['minus'], fill='tozeroy', name='Minus',
+                                 line=dict(color=colors['Minus'])))
+        fig.add_trace(go.Scatter(x=df_filtered.index, y=df_filtered['valor'], fill='tozeroy', name='Valor',
+                                 line=dict(color=colors['Valor'])))
+
+        # Use the autorizations_selected flag to determine whether to plot 'autorizaciones' data
+        if autorizations_selected:
+            fig.add_trace(go.Scatter(x=df_filtered.index, y=df_filtered['aut'], fill='tozeroy', name='Autorizaciones',
+                                     line=dict(color=colors['Autorizaciones'])))
+
+        # Setting plot layout
+        tick_labels = df_filtered['Tiempo'].unique().tolist()
+        tick_positions = list(range(len(tick_labels)))  # Convert range to list
+
+        fig.update_layout(
+            title=f'Ciudad: {ciudad}, Estación: {nombre}, Frecuencia: {frequency} Hz',
+            xaxis=dict(
+                title='Tiempo',
+                type='category',
+                tickangle=-45,
+                ticktext=tick_labels,
+                tickvals=tick_positions
             ),
-            layout=go.Layout(
-                title=f'Level (dBµV/m) vs. Tiempo for {frequency} Hz',
-                xaxis_title='Tiempo',
-                yaxis_title='Level (dBµV/m)',
-            )
+            yaxis=dict(
+                title='Nivel de Intensidad de Campo Eléctrico (dBµV/m)',
+                range=[0, 120]
+            ),
+            margin=dict(l=100, r=100, t=100, b=100),
+            hovermode='closest'
         )
+
+        # Adding annotations for initial and final dates of the authorization
+        if autorizations_selected:
+            for mark_time in df_filtered.Fecha_inicio.unique():
+                if mark_time and mark_time != 0:  # Ensure this is the correct condition
+                    try:
+                        mark_index = tick_labels.index(mark_time)
+                        fig.add_annotation(
+                            x=mark_index, y=0,
+                            text=f'Inicio: {mark_time}',
+                            showarrow=True,
+                            arrowhead=1,
+                            ax=0, ay=-40,  # Arrow direction
+                            bgcolor="white",  # Background color of the text box
+                            bordercolor="black",  # Border color of the text box
+                            font=dict(color="black")  # Text font color
+                        )
+                    except ValueError:
+                        pass  # If mark_time is not in tick_labels, skip
+
+            for mark_time in df_filtered.Fecha_fin.unique():
+                if mark_time and mark_time != 0:  # Ensure this is the correct condition
+                    try:
+                        mark_index = tick_labels.index(mark_time)
+                        fig.add_annotation(
+                            x=mark_index, y=0,
+                            text=f'Fin: {mark_time}',
+                            showarrow=True,
+                            arrowhead=1,
+                            ax=0, ay=-40,  # Arrow direction
+                            bgcolor="white",  # Background color of the text box
+                            bordercolor="black",  # Border color of the text box
+                            font=dict(color="black")  # Text font color
+                        )
+                    except ValueError:
+                        pass  # If mark_time is not in tick_labels, skip
+
+        plots.append(dcc.Graph(figure=fig))
+
+    # Return a Div containing all the plots
+    return html.Div(plots)
+
+
+def update_station_plot_tv(selected_frequencies, stored_data, autorizations_selected, ciudad):
+    if not selected_frequencies or not stored_data:
+        return no_update
+
+    # Convert stored_data to DataFrame
+    df = pd.DataFrame.from_records(stored_data)
+    df['Tiempo'] = pd.to_datetime(df['Tiempo'], errors='coerce')
+    df = df.sort_values(by='Tiempo', ascending=True)
+    df['Tiempo'] = df['Tiempo'].dt.strftime('%Y-%m-%d')
+    # Container for the plots
+    plots = []
+
+    # Create a plot for each selected frequency
+    for frequency in selected_frequencies:
+        df_filtered = df[df['Frecuencia (Hz)'] == frequency]
+        df_filtered = df_filtered.rename(
+            columns={'Frecuencia (Hz)': 'freq', 'Estación': 'est', 'Canal (Número)': 'canal', 'Analógico/Digital': 'ad',
+                     'Level (dBµV/m)': 'level', 'Inicio Autorización': 'Fecha_inicio', 'Fin Autorización': 'Fecha_fin'})
+        df_filtered['Fecha_inicio'] = df_filtered['Fecha_inicio'].fillna(0)
+        df_filtered['Fecha_fin'] = df_filtered['Fecha_fin'].fillna(0)
+        nombre = df_filtered['est'].iloc[0]
+        andig = df_filtered['ad'].iloc[0]
+        if andig == '-':
+            andig = 0
+        else:
+            andig = 1
+
+        def minus(row):
+            try:
+                level = float(row['level'])  # Convert level to float
+            except ValueError:
+                return 0  # Return 0 if conversion fails
+
+            if level > 0:
+                if (54000000 <= row['freq'] <= 88000000 and andig == 0 and level < 47) or \
+                        (174000000 <= row['freq'] <= 216000000 and andig == 0 and level < 56) or \
+                        (470000000 <= row['freq'] <= 880000000 and andig == 0 and level < 64) or \
+                        (andig == 1 and level < 30):
+                    return level
+            return 0
+
+        def bet(row):
+            try:
+                level = float(row['level'])  # Convert level to float
+            except ValueError:
+                return 0  # Return 0 if conversion fails
+
+            if level > 0:
+                if (54000000 <= row['freq'] <= 88000000 and andig == 0 and 47 <= level < 68) or \
+                        (174000000 <= row['freq'] <= 216000000 and andig == 0 and 56 <= level < 71) or \
+                        (470000000 <= row['freq'] <= 880000000 and andig == 0 and 64 <= level < 74) or \
+                        (andig == 1 and 30 <= level < 51):
+                    return level
+            return 0
+
+        def plus(row):
+            try:
+                level = float(row['level'])  # Convert level to float
+            except ValueError:
+                return 0  # Return 0 if conversion fails
+
+            if level > 0:
+                if (54000000 <= row['freq'] <= 88000000 and andig == 0 and level >= 68) or \
+                        (174000000 <= row['freq'] <= 216000000 and andig == 0 and level >= 71) or \
+                        (470000000 <= row['freq'] <= 880000000 and andig == 0 and level >= 74) or \
+                        (andig == 1 and level >= 51):
+                    return level
+            return 0
+
+        def valor(row):
+            """function to return a specific value if the value in every row of the column 'level' meet the
+            condition"""
+            if row['level'] == '-':
+                return 120
+            return 0
+
+        def aut(row):
+            """function to return a specific value if the value in every row of the column 'level' meet the
+            condition"""
+            if row['Fecha_fin'] != 0 and row['level'] == 0:
+                return 0
+            elif row['Fecha_fin'] != 0 and row['level'] != 0:
+                return row['level']
+            return 0
+
+        """create a new column in the df_filtered frame for every definition (minus, bet, plus, valor, aut)"""
+        df_filtered['minus'] = df_filtered.apply(lambda row: minus(row), axis=1)
+        df_filtered['bet'] = df_filtered.apply(lambda row: bet(row), axis=1)
+        df_filtered['plus'] = df_filtered.apply(lambda row: plus(row), axis=1)
+        df_filtered['valor'] = df_filtered.apply(lambda row: valor(row), axis=1)
+        df_filtered['aut'] = df_filtered.apply(lambda row: aut(row), axis=1)
+        # Creating the plot
+        fig = go.Figure()
+
+        colors = {
+            'Plus': '#7fc97f',  # Example color, similar to 'Accent'
+            'Bet': '#FFD700',  # Example color, similar to 'Set3_r'
+            'Minus': '#ff9999',  # Example color, similar to 'Pastel1'
+            'Valor': '#beaed4',  # Example color, similar to 'Paired'
+            'Autorizaciones': '#386cb0'  # Example color, similar to 'Set2_r'
+        }
+
+        # Adding area plots with custom colors
+        fig.add_trace(go.Scatter(x=df_filtered.index, y=df_filtered['plus'], fill='tozeroy', name='Plus',
+                                 line=dict(color=colors['Plus'])))
+        fig.add_trace(go.Scatter(x=df_filtered.index, y=df_filtered['bet'], fill='tozeroy', name='Bet',
+                                 line=dict(color=colors['Bet'])))
+        fig.add_trace(go.Scatter(x=df_filtered.index, y=df_filtered['minus'], fill='tozeroy', name='Minus',
+                                 line=dict(color=colors['Minus'])))
+        fig.add_trace(go.Scatter(x=df_filtered.index, y=df_filtered['valor'], fill='tozeroy', name='Valor',
+                                 line=dict(color=colors['Valor'])))
+
+        # Use the autorizations_selected flag to determine whether to plot 'autorizaciones' data
+        if autorizations_selected:
+            fig.add_trace(go.Scatter(x=df_filtered.index, y=df_filtered['aut'], fill='tozeroy', name='Autorizaciones',
+                                     line=dict(color=colors['Autorizaciones'])))
+
+        # Setting plot layout
+        tick_labels = df_filtered['Tiempo'].unique().tolist()
+        tick_positions = list(range(len(tick_labels)))  # Convert range to list
+
+        fig.update_layout(
+            title=f'Ciudad: {ciudad}, Estación: {nombre}, Frecuencia: {frequency} Hz',
+            xaxis=dict(
+                title='Tiempo',
+                type='category',
+                tickangle=-45,
+                ticktext=tick_labels,
+                tickvals=tick_positions
+            ),
+            yaxis=dict(
+                title='Nivel de Intensidad de Campo Eléctrico (dBµV/m)',
+                range=[0, 120]
+            ),
+            margin=dict(l=100, r=100, t=100, b=100),
+            hovermode='closest'
+        )
+
+        # Adding annotations for initial and final dates of the authorization
+        if autorizations_selected:
+            for mark_time in df_filtered.Fecha_inicio.unique():
+                if mark_time and mark_time != 0:  # Ensure this is the correct condition
+                    try:
+                        mark_index = tick_labels.index(mark_time)
+                        fig.add_annotation(
+                            x=mark_index, y=0,
+                            text=f'Inicio: {mark_time}',
+                            showarrow=True,
+                            arrowhead=1,
+                            ax=0, ay=-40,  # Arrow direction
+                            bgcolor="white",  # Background color of the text box
+                            bordercolor="black",  # Border color of the text box
+                            font=dict(color="black")  # Text font color
+                        )
+                    except ValueError:
+                        pass  # If mark_time is not in tick_labels, skip
+
+            for mark_time in df_filtered.Fecha_fin.unique():
+                if mark_time and mark_time != 0:  # Ensure this is the correct condition
+                    try:
+                        mark_index = tick_labels.index(mark_time)
+                        fig.add_annotation(
+                            x=mark_index, y=0,
+                            text=f'Fin: {mark_time}',
+                            showarrow=True,
+                            arrowhead=1,
+                            ax=0, ay=-40,  # Arrow direction
+                            bgcolor="white",  # Background color of the text box
+                            bordercolor="black",  # Border color of the text box
+                            font=dict(color="black")  # Text font color
+                        )
+                    except ValueError:
+                        pass  # If mark_time is not in tick_labels, skip
+
+        plots.append(dcc.Graph(figure=fig))
+
+    # Return a Div containing all the plots
+    return html.Div(plots)
+
+
+def update_station_plot_am(selected_frequencies, stored_data, autorizations_selected, ciudad):
+    if not selected_frequencies or not stored_data:
+        return no_update
+
+    # Convert stored_data to DataFrame
+    df = pd.DataFrame.from_records(stored_data)
+    df['Tiempo'] = pd.to_datetime(df['Tiempo'], errors='coerce')
+    df = df.sort_values(by='Tiempo', ascending=True)
+    df['Tiempo'] = df['Tiempo'].dt.strftime('%Y-%m-%d')
+    # Container for the plots
+    plots = []
+
+    # Create a plot for each selected frequency
+    for frequency in selected_frequencies:
+        df_filtered = df[df['Frecuencia (Hz)'] == frequency]
+        df_filtered = df_filtered.rename(
+            columns={'Frecuencia (Hz)': 'freq', 'Estación': 'est', 'Level (dBµV/m)': 'level',
+                     'Bandwidth (Hz)': 'bandwidth', 'Inicio Autorización': 'Fecha_inicio',
+                     'Fin Autorización': 'Fecha_fin'})
+        df_filtered['Fecha_inicio'] = df_filtered['Fecha_inicio'].fillna(0)
+        df_filtered['Fecha_fin'] = df_filtered['Fecha_fin'].fillna(0)
+        nombre = df_filtered['est'].iloc[0]
+
+        def minus(row):
+            try:
+                level = float(row['level'])  # Convert level to float
+            except ValueError:
+                return 0  # Return 0 if conversion fails
+
+            if level > 0 and level < 40:
+                return level
+            return 0
+
+        def bet(row):
+            try:
+                level = float(row['level'])  # Convert level to float
+            except ValueError:
+                return 0  # Return 0 if conversion fails
+
+            if level >= 40 and level < 62:
+                return level
+            return 0
+
+        def plus(row):
+            try:
+                level = float(row['level'])  # Convert level to float
+            except ValueError:
+                return 0  # Return 0 if conversion fails
+
+            if level >= 62:
+                return level
+            return 0
+
+        def valor(row):
+            """function to return a specific value if the value in every row of the column 'level' meet the
+            condition"""
+            if row['level'] == '-':
+                return 120
+            return 0
+
+        def aut(row):
+            """function to return a specific value if the value in every row of the column 'level' meet the
+            condition"""
+            if row['Fecha_fin'] != 0 and row['level'] == 0:
+                return 0
+            elif row['Fecha_fin'] != 0 and row['level'] != 0:
+                return row['level']
+            return 0
+
+        """create a new column in the df_filtered frame for every definition (minus, bet, plus, valor, aut)"""
+        df_filtered['minus'] = df_filtered.apply(lambda row: minus(row), axis=1)
+        df_filtered['bet'] = df_filtered.apply(lambda row: bet(row), axis=1)
+        df_filtered['plus'] = df_filtered.apply(lambda row: plus(row), axis=1)
+        df_filtered['valor'] = df_filtered.apply(lambda row: valor(row), axis=1)
+        df_filtered['aut'] = df_filtered.apply(lambda row: aut(row), axis=1)
+        # Creating the plot
+        fig = go.Figure()
+
+        colors = {
+            'Plus': '#7fc97f',  # Example color, similar to 'Accent'
+            'Bet': '#FFD700',  # Example color, similar to 'Set3_r'
+            'Minus': '#ff9999',  # Example color, similar to 'Pastel1'
+            'Valor': '#beaed4',  # Example color, similar to 'Paired'
+            'Autorizaciones': '#386cb0'  # Example color, similar to 'Set2_r'
+        }
+
+        # Adding area plots with custom colors
+        fig.add_trace(go.Scatter(x=df_filtered.index, y=df_filtered['plus'], fill='tozeroy', name='Plus',
+                                 line=dict(color=colors['Plus'])))
+        fig.add_trace(go.Scatter(x=df_filtered.index, y=df_filtered['bet'], fill='tozeroy', name='Bet',
+                                 line=dict(color=colors['Bet'])))
+        fig.add_trace(go.Scatter(x=df_filtered.index, y=df_filtered['minus'], fill='tozeroy', name='Minus',
+                                 line=dict(color=colors['Minus'])))
+        fig.add_trace(go.Scatter(x=df_filtered.index, y=df_filtered['valor'], fill='tozeroy', name='Valor',
+                                 line=dict(color=colors['Valor'])))
+
+        # Use the autorizations_selected flag to determine whether to plot 'autorizaciones' data
+        if autorizations_selected:
+            fig.add_trace(go.Scatter(x=df_filtered.index, y=df_filtered['aut'], fill='tozeroy', name='Autorizaciones',
+                                     line=dict(color=colors['Autorizaciones'])))
+
+        # Setting plot layout
+        tick_labels = df_filtered['Tiempo'].unique().tolist()
+        tick_positions = list(range(len(tick_labels)))  # Convert range to list
+
+        fig.update_layout(
+            title=f'Ciudad: {ciudad}, Estación: {nombre}, Frecuencia: {frequency} Hz',
+            xaxis=dict(
+                title='Tiempo',
+                type='category',
+                tickangle=-45,
+                ticktext=tick_labels,
+                tickvals=tick_positions
+            ),
+            yaxis=dict(
+                title='Nivel de Intensidad de Campo Eléctrico (dBµV/m)',
+                range=[0, 120]
+            ),
+            margin=dict(l=100, r=100, t=100, b=100),
+            hovermode='closest'
+        )
+
+        # Adding annotations for initial and final dates of the authorization
+        if autorizations_selected:
+            for mark_time in df_filtered.Fecha_inicio.unique():
+                if mark_time and mark_time != 0:  # Ensure this is the correct condition
+                    try:
+                        mark_index = tick_labels.index(mark_time)
+                        fig.add_annotation(
+                            x=mark_index, y=0,
+                            text=f'Inicio: {mark_time}',
+                            showarrow=True,
+                            arrowhead=1,
+                            ax=0, ay=-40,  # Arrow direction
+                            bgcolor="white",  # Background color of the text box
+                            bordercolor="black",  # Border color of the text box
+                            font=dict(color="black")  # Text font color
+                        )
+                    except ValueError:
+                        pass  # If mark_time is not in tick_labels, skip
+
+            for mark_time in df_filtered.Fecha_fin.unique():
+                if mark_time and mark_time != 0:  # Ensure this is the correct condition
+                    try:
+                        mark_index = tick_labels.index(mark_time)
+                        fig.add_annotation(
+                            x=mark_index, y=0,
+                            text=f'Fin: {mark_time}',
+                            showarrow=True,
+                            arrowhead=1,
+                            ax=0, ay=-40,  # Arrow direction
+                            bgcolor="white",  # Background color of the text box
+                            bordercolor="black",  # Border color of the text box
+                            font=dict(color="black")  # Text font color
+                        )
+                    except ValueError:
+                        pass  # If mark_time is not in tick_labels, skip
+
         plots.append(dcc.Graph(figure=fig))
 
     # Return a Div containing all the plots

@@ -5,7 +5,7 @@ from django.conf import settings
 from django_plotly_dash import DjangoDash
 
 from .utils import convert_timestamps_to_strings, create_heatmap_layout, update_table, update_heatmap, \
-    update_station_plot
+    update_station_plot_fm, update_station_plot_tv, update_station_plot_am
 from .services import customize_data
 
 app = DjangoDash(
@@ -152,31 +152,37 @@ def register_callbacks():
     @app.callback(
         Output('station-plots-container-fm', 'children'),
         [Input('frequency-dropdown1', 'value'),
-         Input('store-df-original1', 'data')]
+         Input('store-df-original1', 'data'),
+         Input('checkbox', 'value'),
+         Input('city-dropdown', 'value')]
     )
-    def update_fm_station_plot(freq1, data1):
+    def update_fm_station_plot(freq1, data1, autorizations, ciudad):
         if freq1 and data1:
-            return html.Div(update_station_plot(freq1, data1))
+            return html.Div(update_station_plot_fm(freq1, data1, autorizations, ciudad))
         return html.Div()
 
     @app.callback(
         Output('station-plots-container-tv', 'children'),
         [Input('frequency-dropdown2', 'value'),
-         Input('store-df-original2', 'data')]
+         Input('store-df-original2', 'data'),
+         Input('checkbox', 'value'),
+         Input('city-dropdown', 'value')]
     )
-    def update_tv_station_plot(freq2, data2):
+    def update_tv_station_plot(freq2, data2, autorizations, ciudad):
         if freq2 and data2:
-            return html.Div(update_station_plot(freq2, data2))
+            return html.Div(update_station_plot_tv(freq2, data2, autorizations, ciudad))
         return html.Div()
 
     @app.callback(
         Output('station-plots-container-am', 'children'),
         [Input('frequency-dropdown3', 'value'),
-         Input('store-df-original3', 'data')]
+         Input('store-df-original3', 'data'),
+         Input('checkbox', 'value'),
+         Input('city-dropdown', 'value')]
     )
-    def update_am_station_plot(freq3, data3):
+    def update_am_station_plot(freq3, data3, autorizations, ciudad):
         if freq3 and data3:
-            return html.Div(update_station_plot(freq3, data3))
+            return html.Div(update_station_plot_am(freq3, data3, autorizations, ciudad))
         return html.Div()
 
 
