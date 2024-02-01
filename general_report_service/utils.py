@@ -373,31 +373,222 @@ def update_heatmap(selected_frequencies: list, stored_data: list) -> Union[go.Fi
     return create_heatmap_data(filtered_df)
 
 
-def update_table(selected_frequencies: list, stored_data: list, table_id: str) -> list:
+def update_station_plot_am(selected_frequencies: list, stored_data: list, autorizations_selected: bool,
+                           ciudad: str) -> dcc.Graph:
     """
-    Update table based on the selected frequencies.
+    Update station plot for AM based on selected frequencies, stored data, and authorization status.
+
+    This function generates a series of interactive plots for AM frequencies, showing the daily electric field levels
+    and highlighting areas based on different criteria such as authorization status and level thresholds.
 
     Args:
-        selected_frequencies (list): List of selected frequencies.
-        stored_data (list): Previously stored data as a list of dictionaries.
-        table_id (str): ID of the table to be updated.
+        selected_frequencies (list): List of selected frequencies to plot.
+        stored_data (list): List of dictionaries containing stored data for plotting.
+        autorizations_selected (bool): Flag indicating whether to include data related to authorization status in plots.
+        ciudad (str): Name of the city for which the plot is being generated.
 
     Returns:
-        list: Updated data for the table in dictionary format.
+        dcc.Graph: A Dash core component Graph that contains the interactive plot.
     """
-    if stored_data is None:
-        return []
+    if not selected_frequencies or not stored_data:
+        return no_update
 
-    df_original = pd.DataFrame.from_records(stored_data)
+    # Convert stored_data to DataFrame
+    df = pd.DataFrame.from_records(stored_data)
+    df['Tiempo'] = pd.to_datetime(df['Tiempo'], errors='coerce')
+    df = df.sort_values(by='Tiempo', ascending=True)
+    df['Tiempo'] = df['Tiempo'].dt.strftime('%Y-%m-%d')
+    # Container for the plots
+    plots = []
 
-    if not selected_frequencies:
-        return df_original.to_dict('records')
+    # Create a plot for each selected frequency
+    for frequency in selected_frequencies:
+        df_filtered = df[df['Frecuencia (Hz)'] == frequency]
+        df_filtered = df_filtered.rename(
+            columns={'Frecuencia (Hz)': 'freq', 'Estación': 'est', 'Level (dBµV/m)': 'level',
+                     'Bandwidth (Hz)': 'bandwidth', 'Inicio Autorización': 'Fecha_inicio',
+                     'Fin Autorización': 'Fecha_fin'})
+        df_filtered['Fecha_inicio'] = df_filtered['Fecha_inicio'].fillna(0)
+        df_filtered['Fecha_fin'] = df_filtered['Fecha_fin'].fillna(0)
+        nombre = df_filtered['est'].iloc[0]
 
-    filtered_df = df_original[df_original['Frecuencia (Hz)'].isin(selected_frequencies)]
-    return filtered_df.to_dict('records')
+        def minus(row):
+            try:
+                level = float(row['level'])  # Convert level to float
+            except ValueError:
+                return 0  # Return 0 if conversion fails
+
+            if level > 0 and level < 40:
+                return level
+            return 0
+
+        def bet(row):
+            try:
+                level = float(row['level'])  # Convert level to float
+            except ValueError:
+                return 0  # Return 0 if conversion fails
+
+            if level >= 40 and level < 62:
+                return level
+            return 0
+
+        def plus(row):
+            try:
+                level = float(row['level'])  # Convert level to float
+            except ValueError:
+                return 0  # Return 0 if conversion fails
+
+            if level >= 62:
+                return level
+            return 0
+
+        def valor(row):
+            """function to return a specific value if the value in every row of the column 'level' meet the
+            condition"""
+            if row['level'] == '-':
+                return 120
+            return 0
+
+        def aut(row):
+            """function to return a specific value if the value in every row of the column 'level' meet the
+            condition"""
+            if row['Fecha_fin'] != 0 and row['level'] == 0:
+                return 0
+            elif row['Fecha_fin'] != 0 and row['level'] != 0:
+                return row['level']
+            return 0
+
+        """create a new column in the df_filtered frame for every definition (minus, bet, plus, valor, aut)"""
+        df_filtered['minus'] = df_filtered.apply(lambda row: minus(row), axis=1)
+        df_filtered['bet'] = df_filtered.apply(lambda row: bet(row), axis=1)
+        df_filtered['plus'] = df_filtered.apply(lambda row: plus(row), axis=1)
+        df_filtered['valor'] = df_filtered.apply(lambda row: valor(row), axis=1)
+        df_filtered['aut'] = df_filtered.apply(lambda row: aut(row), axis=1)
+        # Creating the plot
+        fig = go.Figure()
+
+        colors = {
+            'Plus': '#7fc97f',  # Example color, similar to 'Accent'
+            'Bet': '#FFD700',  # Example color, similar to 'Set3_r'
+            'Minus': '#ff9999',  # Example color, similar to 'Pastel1'
+            'Valor': '#beaed4',  # Example color, similar to 'Paired'
+            'Autorizaciones': '#386cb0'  # Example color, similar to 'Set2_r'
+        }
+
+        # Adding area plots with custom colors
+        fig.add_trace(go.Scatter(x=df_filtered['Tiempo'], y=df_filtered['plus'], fill='tozeroy',
+                                 name='Los valores de campo eléctrico diario superan el valor del borde de área de cobertura (>=62 dBuV/m).',
+                                 line=dict(color=colors['Plus'])))
+        fig.add_trace(go.Scatter(x=df_filtered['Tiempo'], y=df_filtered['bet'], fill='tozeroy',
+                                 name='Los valores de campo eléctrico diario se encuentran entre el valor del borde de área de protección y el valor del borde de área de cobertura (entre 40 y 62 dBuV/m).',
+                                 line=dict(color=colors['Bet'])))
+        fig.add_trace(go.Scatter(x=df_filtered['Tiempo'], y=df_filtered['minus'], fill='tozeroy',
+                                 name='Los valores de campo eléctrico diario son inferiores al valor del borde de área de protección (<40 dBuV/m).',
+                                 line=dict(color=colors['Minus'])))
+        fig.add_trace(go.Scatter(x=df_filtered['Tiempo'], y=df_filtered['valor'], fill='tozeroy',
+                                 name='No se dispone de mediciones del sistema SACER.',
+                                 line=dict(color=colors['Valor'])))
+
+        # Use the autorizations_selected flag to determine whether to plot 'autorizaciones' data
+        if autorizations_selected:
+            fig.add_trace(
+                go.Scatter(x=df_filtered['Tiempo'], y=df_filtered['aut'], fill='tozeroy',
+                           name='Dispone de autorización para suspensión de emisiones y/o operación con baja potencia.',
+                           line=dict(color=colors['Autorizaciones'])))
+
+        # Setting plot layout
+        tick_labels = df_filtered['Tiempo'].unique().tolist()
+        tick_positions = list(range(len(tick_labels)))  # Convert range to list
+
+        fig.update_layout(
+            title=f'Ciudad: {ciudad}, Estación: {nombre}, Frecuencia: {frequency} Hz',
+            xaxis=dict(
+                title='Tiempo',
+                type='category',
+                tickangle=-45,
+                tickmode='auto',
+                nticks=31,
+                ticktext=tick_labels,
+                tickvals=tick_positions
+            ),
+            yaxis=dict(
+                title='Nivel de Intensidad de Campo Eléctrico (dBµV/m)',
+                range=[0, 120]
+            ),
+            margin=dict(l=100, r=100, t=100, b=100),
+            hovermode='closest',
+            legend=dict(
+                x=0.5,
+                y=-0.3,
+                traceorder='normal',
+                font=dict(
+                    size=12,
+                ),
+                orientation='h',
+                xanchor='center',
+                yanchor='top'
+            )
+        )
+
+        # Adding annotations for initial and final dates of the authorization
+        if autorizations_selected:
+            for mark_time in df_filtered.Fecha_inicio.unique():
+                if mark_time and mark_time != 0:  # Ensure this is the correct condition
+                    try:
+                        mark_index = tick_labels.index(mark_time)
+                        fig.add_annotation(
+                            x=mark_index, y=0,
+                            text=f'Inicio: {mark_time}',
+                            showarrow=True,
+                            arrowhead=1,
+                            ax=0, ay=-40,  # Arrow direction
+                            bgcolor="white",  # Background color of the text box
+                            bordercolor="black",  # Border color of the text box
+                            font=dict(color="black")  # Text font color
+                        )
+                    except ValueError:
+                        pass  # If mark_time is not in tick_labels, skip
+
+            for mark_time in df_filtered.Fecha_fin.unique():
+                if mark_time and mark_time != 0:  # Ensure this is the correct condition
+                    try:
+                        mark_index = tick_labels.index(mark_time)
+                        fig.add_annotation(
+                            x=mark_index, y=0,
+                            text=f'Fin: {mark_time}',
+                            showarrow=True,
+                            arrowhead=1,
+                            ax=0, ay=-40,  # Arrow direction
+                            bgcolor="white",  # Background color of the text box
+                            bordercolor="black",  # Border color of the text box
+                            font=dict(color="black")  # Text font color
+                        )
+                    except ValueError:
+                        pass  # If mark_time is not in tick_labels, skip
+
+        plots.append(dcc.Graph(figure=fig))
+
+    # Return a Div containing all the plots
+    return html.Div(plots)
 
 
-def update_station_plot_fm(selected_frequencies, stored_data, autorizations_selected, ciudad):
+def update_station_plot_fm(selected_frequencies: list, stored_data: list, autorizations_selected: bool,
+                           ciudad: str) -> dcc.Graph:
+    """
+    Update station plot for FM based on selected frequencies, stored data, and authorization status.
+
+    This function generates a series of interactive plots for FM frequencies, showing the daily electric field levels
+    and highlighting areas based on different criteria such as authorization status and level thresholds.
+
+    Args:
+        selected_frequencies (list): List of selected frequencies to plot.
+        stored_data (list): List of dictionaries containing stored data for plotting.
+        autorizations_selected (bool): Flag indicating whether to include data related to authorization status in plots.
+        ciudad (str): Name of the city for which the plot is being generated.
+
+    Returns:
+        dcc.Graph: A Dash core component Graph that contains the interactive plot.
+    """
     if not selected_frequencies or not stored_data:
         return no_update
 
@@ -513,20 +704,40 @@ def update_station_plot_fm(selected_frequencies, stored_data, autorizations_sele
             'Autorizaciones': '#386cb0'  # Example color, similar to 'Set2_r'
         }
 
+        if pot == 0 and bw == 220:
+            tipo = 'Estereofónico'
+            maximo = 54
+        elif pot == 0 and bw == 200:
+            tipo = 'Estereofónico'
+            maximo = 54
+        elif pot == 0 and bw == 180:
+            tipo = 'Monofónico'
+            maximo = 48
+        elif pot == 1:
+            tipo = 'Baja Potencia'
+            maximo = 43
+        minimo = 30
+
         # Adding area plots with custom colors
-        fig.add_trace(go.Scatter(x=df_filtered.index, y=df_filtered['plus'], fill='tozeroy', name='Plus',
+        fig.add_trace(go.Scatter(x=df_filtered['Tiempo'], y=df_filtered['plus'], fill='tozeroy',
+                                 name=f'Los valores de campo eléctrico diario superan el valor del borde de área de cobertura ({tipo}: >={maximo} dBuV/m).',
                                  line=dict(color=colors['Plus'])))
-        fig.add_trace(go.Scatter(x=df_filtered.index, y=df_filtered['bet'], fill='tozeroy', name='Bet',
+        fig.add_trace(go.Scatter(x=df_filtered['Tiempo'], y=df_filtered['bet'], fill='tozeroy',
+                                 name=f'Los valores de campo eléctrico diario se encuentran entre el valor del borde de área de protección y el valor del borde de área de cobertura ({tipo}: entre {minimo} y {maximo} dBuV/m).',
                                  line=dict(color=colors['Bet'])))
-        fig.add_trace(go.Scatter(x=df_filtered.index, y=df_filtered['minus'], fill='tozeroy', name='Minus',
+        fig.add_trace(go.Scatter(x=df_filtered['Tiempo'], y=df_filtered['minus'], fill='tozeroy',
+                                 name=f'Los valores de campo eléctrico diario son inferiores al valor del borde de área de protección ({tipo}: <{minimo} dBuV/m).',
                                  line=dict(color=colors['Minus'])))
-        fig.add_trace(go.Scatter(x=df_filtered.index, y=df_filtered['valor'], fill='tozeroy', name='Valor',
+        fig.add_trace(go.Scatter(x=df_filtered['Tiempo'], y=df_filtered['valor'], fill='tozeroy',
+                                 name='No se dispone de mediciones del sistema SACER.',
                                  line=dict(color=colors['Valor'])))
 
         # Use the autorizations_selected flag to determine whether to plot 'autorizaciones' data
         if autorizations_selected:
-            fig.add_trace(go.Scatter(x=df_filtered.index, y=df_filtered['aut'], fill='tozeroy', name='Autorizaciones',
-                                     line=dict(color=colors['Autorizaciones'])))
+            fig.add_trace(
+                go.Scatter(x=df_filtered['Tiempo'], y=df_filtered['aut'], fill='tozeroy',
+                           name='Dispone de autorización para suspensión de emisiones y/o operación con baja potencia.',
+                           line=dict(color=colors['Autorizaciones'])))
 
         # Setting plot layout
         tick_labels = df_filtered['Tiempo'].unique().tolist()
@@ -538,6 +749,8 @@ def update_station_plot_fm(selected_frequencies, stored_data, autorizations_sele
                 title='Tiempo',
                 type='category',
                 tickangle=-45,
+                tickmode='auto',
+                nticks=31,
                 ticktext=tick_labels,
                 tickvals=tick_positions
             ),
@@ -546,7 +759,18 @@ def update_station_plot_fm(selected_frequencies, stored_data, autorizations_sele
                 range=[0, 120]
             ),
             margin=dict(l=100, r=100, t=100, b=100),
-            hovermode='closest'
+            hovermode='closest',
+            legend=dict(
+                x=0.5,
+                y=-0.3,
+                traceorder='normal',
+                font=dict(
+                    size=12,
+                ),
+                orientation='h',
+                xanchor='center',
+                yanchor='top'
+            )
         )
 
         # Adding annotations for initial and final dates of the authorization
@@ -591,7 +815,23 @@ def update_station_plot_fm(selected_frequencies, stored_data, autorizations_sele
     return html.Div(plots)
 
 
-def update_station_plot_tv(selected_frequencies, stored_data, autorizations_selected, ciudad):
+def update_station_plot_tv(selected_frequencies: list, stored_data: list, autorizations_selected: bool,
+                           ciudad: str) -> dcc.Graph:
+    """
+    Update station plot for TV based on selected frequencies, stored data, and authorization status.
+
+    This function generates a series of interactive plots for TV frequencies, showing the daily electric field levels
+    and highlighting areas based on different criteria such as authorization status and level thresholds.
+
+    Args:
+        selected_frequencies (list): List of selected frequencies to plot.
+        stored_data (list): List of dictionaries containing stored data for plotting.
+        autorizations_selected (bool): Flag indicating whether to include data related to authorization status in plots.
+        ciudad (str): Name of the city for which the plot is being generated.
+
+    Returns:
+        dcc.Graph: A Dash core component Graph that contains the interactive plot.
+    """
     if not selected_frequencies or not stored_data:
         return no_update
 
@@ -693,20 +933,41 @@ def update_station_plot_tv(selected_frequencies, stored_data, autorizations_sele
             'Autorizaciones': '#386cb0'  # Example color, similar to 'Set2_r'
         }
 
+        if df_filtered['freq'].iloc[0] >= 54000000 and df_filtered['freq'].iloc[0] <= 88000000 and andig == 0:
+            Plus = f'Los valores de campo eléctrico diario superan el límite del área de cobertura primaria (Frecuencia {frequency} Hz: >= 68 dBuV/m).'
+            Bet = f'Los valores de campo eléctrico diario superan el límite del área de cobertura secundario pero son inferiores al límite del área de cobertura principal establecido (Frecuencia {frequency} Hz: entre 47 y 68 dBuV/m).'
+            Minus = f'Los valores de campo eléctrico diario son inferiores al límite de área de cobertura secundario. (Frecuencia {frequency} Hz: < 47 dBuV/m).'
+        elif df_filtered['freq'].iloc[0] >= 174000000 and df_filtered['freq'].iloc[0] <= 216000000 and andig == 0:
+            Plus = f'Los valores de campo eléctrico diario superan el límite del área de cobertura primaria (Frecuencia {frequency} Hz: >= 71 dBuV/m).'
+            Bet = f'Los valores de campo eléctrico diario superan el límite del área de cobertura secundario pero son inferiores al límite del área de cobertura principal establecido (Frecuencia {frequency} Hz: entre 56 y 71 dBuV/m).'
+            Minus = f'Los valores de campo eléctrico diario son inferiores al límite de área de cobertura secundario. (Frecuencia {frequency} Hz: < 56 dBuV/m).'
+        elif df_filtered['freq'].iloc[0] >= 470000000 and df_filtered['freq'].iloc[0] <= 880000000 and andig == 0:
+            Plus = f'Los valores de campo eléctrico diario superan el límite del área de cobertura primaria (Frecuencia {frequency} Hz: >= 74 dBuV/m).'
+            Bet = f'Los valores de campo eléctrico diario superan el límite del área de cobertura secundario pero son inferiores al límite del área de cobertura principal establecido (Frecuencia {frequency} Hz: entre 64 y 74 dBuV/m).'
+            Minus = f'Los valores de campo eléctrico diario son inferiores al límite de área de cobertura secundario. (Frecuencia {frequency} Hz: < 64 dBuV/m).'
+        elif andig == 1:
+            Plus = f'Los valores de campo eléctrico diario superan el límite del área de cobertura primaria (Frecuencia {frequency} Hz: >= 51 dBuV/m).'
+            Bet = f'Los valores de campo eléctrico diario superan el límite del área de cobertura secundario pero son inferiores al límite del área de cobertura principal establecido (Frecuencia {frequency} Hz: entre 30 y 51 dBuV/m).'
+            Minus = f'Los valores de campo eléctrico diario son inferiores al límite de área de cobertura secundario. (Frecuencia {frequency} Hz: < 30 dBuV/m).'
+
+        Valor = 'No se dispone de mediciones del sistema SACER.'
+        Autorizaciones = 'Dispone de autorización para suspensión de emisiones y/o operación con baja potencia.'
+
         # Adding area plots with custom colors
-        fig.add_trace(go.Scatter(x=df_filtered.index, y=df_filtered['plus'], fill='tozeroy', name='Plus',
+        fig.add_trace(go.Scatter(x=df_filtered['Tiempo'], y=df_filtered['plus'], fill='tozeroy', name=Plus,
                                  line=dict(color=colors['Plus'])))
-        fig.add_trace(go.Scatter(x=df_filtered.index, y=df_filtered['bet'], fill='tozeroy', name='Bet',
+        fig.add_trace(go.Scatter(x=df_filtered['Tiempo'], y=df_filtered['bet'], fill='tozeroy', name=Bet,
                                  line=dict(color=colors['Bet'])))
-        fig.add_trace(go.Scatter(x=df_filtered.index, y=df_filtered['minus'], fill='tozeroy', name='Minus',
+        fig.add_trace(go.Scatter(x=df_filtered['Tiempo'], y=df_filtered['minus'], fill='tozeroy', name=Minus,
                                  line=dict(color=colors['Minus'])))
-        fig.add_trace(go.Scatter(x=df_filtered.index, y=df_filtered['valor'], fill='tozeroy', name='Valor',
+        fig.add_trace(go.Scatter(x=df_filtered['Tiempo'], y=df_filtered['valor'], fill='tozeroy', name=Valor,
                                  line=dict(color=colors['Valor'])))
 
         # Use the autorizations_selected flag to determine whether to plot 'autorizaciones' data
         if autorizations_selected:
-            fig.add_trace(go.Scatter(x=df_filtered.index, y=df_filtered['aut'], fill='tozeroy', name='Autorizaciones',
-                                     line=dict(color=colors['Autorizaciones'])))
+            fig.add_trace(
+                go.Scatter(x=df_filtered['Tiempo'], y=df_filtered['aut'], fill='tozeroy', name=Autorizaciones,
+                           line=dict(color=colors['Autorizaciones'])))
 
         # Setting plot layout
         tick_labels = df_filtered['Tiempo'].unique().tolist()
@@ -718,6 +979,8 @@ def update_station_plot_tv(selected_frequencies, stored_data, autorizations_sele
                 title='Tiempo',
                 type='category',
                 tickangle=-45,
+                tickmode='auto',
+                nticks=31,
                 ticktext=tick_labels,
                 tickvals=tick_positions
             ),
@@ -726,7 +989,18 @@ def update_station_plot_tv(selected_frequencies, stored_data, autorizations_sele
                 range=[0, 120]
             ),
             margin=dict(l=100, r=100, t=100, b=100),
-            hovermode='closest'
+            hovermode='closest',
+            legend=dict(
+                x=0.5,
+                y=-0.3,
+                traceorder='normal',
+                font=dict(
+                    size=12,
+                ),
+                orientation='h',
+                xanchor='center',
+                yanchor='top'
+            )
         )
 
         # Adding annotations for initial and final dates of the authorization
@@ -740,7 +1014,7 @@ def update_station_plot_tv(selected_frequencies, stored_data, autorizations_sele
                             text=f'Inicio: {mark_time}',
                             showarrow=True,
                             arrowhead=1,
-                            ax=0, ay=-40,  # Arrow direction
+                            ax=0, ay=-60,  # Arrow direction
                             bgcolor="white",  # Background color of the text box
                             bordercolor="black",  # Border color of the text box
                             font=dict(color="black")  # Text font color
@@ -757,7 +1031,7 @@ def update_station_plot_tv(selected_frequencies, stored_data, autorizations_sele
                             text=f'Fin: {mark_time}',
                             showarrow=True,
                             arrowhead=1,
-                            ax=0, ay=-40,  # Arrow direction
+                            ax=0, ay=-30,  # Arrow direction
                             bgcolor="white",  # Background color of the text box
                             bordercolor="black",  # Border color of the text box
                             font=dict(color="black")  # Text font color
@@ -771,165 +1045,25 @@ def update_station_plot_tv(selected_frequencies, stored_data, autorizations_sele
     return html.Div(plots)
 
 
-def update_station_plot_am(selected_frequencies, stored_data, autorizations_selected, ciudad):
-    if not selected_frequencies or not stored_data:
-        return no_update
+def update_table(selected_frequencies: list, stored_data: list, table_id: str) -> list:
+    """
+    Update table based on the selected frequencies.
 
-    # Convert stored_data to DataFrame
-    df = pd.DataFrame.from_records(stored_data)
-    df['Tiempo'] = pd.to_datetime(df['Tiempo'], errors='coerce')
-    df = df.sort_values(by='Tiempo', ascending=True)
-    df['Tiempo'] = df['Tiempo'].dt.strftime('%Y-%m-%d')
-    # Container for the plots
-    plots = []
+    Args:
+        selected_frequencies (list): List of selected frequencies.
+        stored_data (list): Previously stored data as a list of dictionaries.
+        table_id (str): ID of the table to be updated.
 
-    # Create a plot for each selected frequency
-    for frequency in selected_frequencies:
-        df_filtered = df[df['Frecuencia (Hz)'] == frequency]
-        df_filtered = df_filtered.rename(
-            columns={'Frecuencia (Hz)': 'freq', 'Estación': 'est', 'Level (dBµV/m)': 'level',
-                     'Bandwidth (Hz)': 'bandwidth', 'Inicio Autorización': 'Fecha_inicio',
-                     'Fin Autorización': 'Fecha_fin'})
-        df_filtered['Fecha_inicio'] = df_filtered['Fecha_inicio'].fillna(0)
-        df_filtered['Fecha_fin'] = df_filtered['Fecha_fin'].fillna(0)
-        nombre = df_filtered['est'].iloc[0]
+    Returns:
+        list: Updated data for the table in dictionary format.
+    """
+    if stored_data is None:
+        return []
 
-        def minus(row):
-            try:
-                level = float(row['level'])  # Convert level to float
-            except ValueError:
-                return 0  # Return 0 if conversion fails
+    df_original = pd.DataFrame.from_records(stored_data)
 
-            if level > 0 and level < 40:
-                return level
-            return 0
+    if not selected_frequencies:
+        return df_original.to_dict('records')
 
-        def bet(row):
-            try:
-                level = float(row['level'])  # Convert level to float
-            except ValueError:
-                return 0  # Return 0 if conversion fails
-
-            if level >= 40 and level < 62:
-                return level
-            return 0
-
-        def plus(row):
-            try:
-                level = float(row['level'])  # Convert level to float
-            except ValueError:
-                return 0  # Return 0 if conversion fails
-
-            if level >= 62:
-                return level
-            return 0
-
-        def valor(row):
-            """function to return a specific value if the value in every row of the column 'level' meet the
-            condition"""
-            if row['level'] == '-':
-                return 120
-            return 0
-
-        def aut(row):
-            """function to return a specific value if the value in every row of the column 'level' meet the
-            condition"""
-            if row['Fecha_fin'] != 0 and row['level'] == 0:
-                return 0
-            elif row['Fecha_fin'] != 0 and row['level'] != 0:
-                return row['level']
-            return 0
-
-        """create a new column in the df_filtered frame for every definition (minus, bet, plus, valor, aut)"""
-        df_filtered['minus'] = df_filtered.apply(lambda row: minus(row), axis=1)
-        df_filtered['bet'] = df_filtered.apply(lambda row: bet(row), axis=1)
-        df_filtered['plus'] = df_filtered.apply(lambda row: plus(row), axis=1)
-        df_filtered['valor'] = df_filtered.apply(lambda row: valor(row), axis=1)
-        df_filtered['aut'] = df_filtered.apply(lambda row: aut(row), axis=1)
-        # Creating the plot
-        fig = go.Figure()
-
-        colors = {
-            'Plus': '#7fc97f',  # Example color, similar to 'Accent'
-            'Bet': '#FFD700',  # Example color, similar to 'Set3_r'
-            'Minus': '#ff9999',  # Example color, similar to 'Pastel1'
-            'Valor': '#beaed4',  # Example color, similar to 'Paired'
-            'Autorizaciones': '#386cb0'  # Example color, similar to 'Set2_r'
-        }
-
-        # Adding area plots with custom colors
-        fig.add_trace(go.Scatter(x=df_filtered.index, y=df_filtered['plus'], fill='tozeroy', name='Plus',
-                                 line=dict(color=colors['Plus'])))
-        fig.add_trace(go.Scatter(x=df_filtered.index, y=df_filtered['bet'], fill='tozeroy', name='Bet',
-                                 line=dict(color=colors['Bet'])))
-        fig.add_trace(go.Scatter(x=df_filtered.index, y=df_filtered['minus'], fill='tozeroy', name='Minus',
-                                 line=dict(color=colors['Minus'])))
-        fig.add_trace(go.Scatter(x=df_filtered.index, y=df_filtered['valor'], fill='tozeroy', name='Valor',
-                                 line=dict(color=colors['Valor'])))
-
-        # Use the autorizations_selected flag to determine whether to plot 'autorizaciones' data
-        if autorizations_selected:
-            fig.add_trace(go.Scatter(x=df_filtered.index, y=df_filtered['aut'], fill='tozeroy', name='Autorizaciones',
-                                     line=dict(color=colors['Autorizaciones'])))
-
-        # Setting plot layout
-        tick_labels = df_filtered['Tiempo'].unique().tolist()
-        tick_positions = list(range(len(tick_labels)))  # Convert range to list
-
-        fig.update_layout(
-            title=f'Ciudad: {ciudad}, Estación: {nombre}, Frecuencia: {frequency} Hz',
-            xaxis=dict(
-                title='Tiempo',
-                type='category',
-                tickangle=-45,
-                ticktext=tick_labels,
-                tickvals=tick_positions
-            ),
-            yaxis=dict(
-                title='Nivel de Intensidad de Campo Eléctrico (dBµV/m)',
-                range=[0, 120]
-            ),
-            margin=dict(l=100, r=100, t=100, b=100),
-            hovermode='closest'
-        )
-
-        # Adding annotations for initial and final dates of the authorization
-        if autorizations_selected:
-            for mark_time in df_filtered.Fecha_inicio.unique():
-                if mark_time and mark_time != 0:  # Ensure this is the correct condition
-                    try:
-                        mark_index = tick_labels.index(mark_time)
-                        fig.add_annotation(
-                            x=mark_index, y=0,
-                            text=f'Inicio: {mark_time}',
-                            showarrow=True,
-                            arrowhead=1,
-                            ax=0, ay=-40,  # Arrow direction
-                            bgcolor="white",  # Background color of the text box
-                            bordercolor="black",  # Border color of the text box
-                            font=dict(color="black")  # Text font color
-                        )
-                    except ValueError:
-                        pass  # If mark_time is not in tick_labels, skip
-
-            for mark_time in df_filtered.Fecha_fin.unique():
-                if mark_time and mark_time != 0:  # Ensure this is the correct condition
-                    try:
-                        mark_index = tick_labels.index(mark_time)
-                        fig.add_annotation(
-                            x=mark_index, y=0,
-                            text=f'Fin: {mark_time}',
-                            showarrow=True,
-                            arrowhead=1,
-                            ax=0, ay=-40,  # Arrow direction
-                            bgcolor="white",  # Background color of the text box
-                            bordercolor="black",  # Border color of the text box
-                            font=dict(color="black")  # Text font color
-                        )
-                    except ValueError:
-                        pass  # If mark_time is not in tick_labels, skip
-
-        plots.append(dcc.Graph(figure=fig))
-
-    # Return a Div containing all the plots
-    return html.Div(plots)
+    filtered_df = df_original[df_original['Frecuencia (Hz)'].isin(selected_frequencies)]
+    return filtered_df.to_dict('records')

@@ -11,9 +11,7 @@ from .services import customize_data
 app = DjangoDash(
     name='GeneralReportApp',
     add_bootstrap_links=True,
-    external_stylesheets=[
-        "/static/css/inner.css",
-    ]
+    external_stylesheets=["/static/css/inner.css"]
 )
 
 
@@ -60,7 +58,14 @@ def define_app_layout():
 
         html.Div(id='station-plots-container'),
 
-    ], style={'height': '100vh'})
+    ], style={
+        'display': 'flex',
+        'flex-direction': 'column',
+        'justify-content': 'flex-start',  # Aligns children to the start of the container
+        'align-items': 'stretch',  # Stretches children to fill the container width
+        'min-height': '100vh',  # Ensures at least the height of the viewport
+        'height': 'auto',  # Allows the container to grow beyond the viewport height if needed
+    })
 
 
 app.layout = define_app_layout()

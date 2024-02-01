@@ -44,6 +44,7 @@ INSTALLED_APPS = [
     # 3rd-party apps
     'rest_framework',
     'django_plotly_dash.apps.DjangoPlotlyDashConfig',
+    'bootstrap4',
     # Local
     'index_service.apps.IndexServiceConfig',
     'general_report_service.apps.GeneralReportServiceConfig',
@@ -51,13 +52,15 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
-    "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "django_plotly_dash.middleware.BaseMiddleware",
+    "django_plotly_dash.middleware.ExternalRedirectionMiddleware",
+    "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
 ROOT_URLCONF = "tablero.urls"
@@ -128,7 +131,50 @@ STATIC_ROOT = str(BASE_DIR.joinpath('staticfiles'))
 STATICFILES_FINDERS = [
     "django.contrib.staticfiles.finders.FileSystemFinder",
     "django.contrib.staticfiles.finders.AppDirectoriesFinder",
+    "django_plotly_dash.finders.DashAssetFinder",
+    "django_plotly_dash.finders.DashComponentFinder",
+    "django_plotly_dash.finders.DashAppDirectoryFinder",
 ]
+
+PLOTLY_COMPONENTS = [
+
+    # Common components (ie within dash itself) are automatically added
+
+    # django-plotly-dash components
+    "dpd_components",
+    # static support if serving local assets
+    "dpd_static_support",
+
+    # Other components, as needed
+    "dash_bootstrap_components",
+]
+
+PLOTLY_DASH = {
+
+    # Route used for the message pipe websocket connection
+    "ws_route": "dpd/ws/channel",
+
+    # Route used for direct http insertion of pipe messages
+    "http_route": "dpd/views",
+
+    # Flag controlling existince of http poke endpoint
+    "http_poke_enabled": True,
+
+    # Insert data for the demo when migrating
+    "insert_demo_migrations": False,
+
+    # Timeout for caching of initial arguments in seconds
+    "cache_timeout_initial_arguments": 60,
+
+    # Name of view wrapping function
+    "view_decorator": None,
+
+    # Flag to control location of initial argument storage
+    "cache_arguments": True,
+
+    # Flag controlling local serving of assets
+    "serve_locally": False,
+}
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.0/ref/settings/#default-auto-field
@@ -142,6 +188,9 @@ REST_FRAMEWORK = {
 }
 
 X_FRAME_OPTIONS = 'SAMEORIGIN'
+
+# Increase the maximum upload size to 10 MB
+DATA_UPLOAD_MAX_MEMORY_SIZE = 10485760  # 10 MB in bytes
 
 # settings.py
 

@@ -1,24 +1,6 @@
-/* Reset the default margin and padding */
+/* style.css */
 html, body {
     height: 100%;
     margin: 0;
     padding: 0;
-}
-
-/* Make the dashboard container take at least the full viewport height */
-.dashboard-container {
-    min-height: 100vh; /* Set the minimum height to be 100% of the viewport height */
-    display: flex;
-    flex-direction: column;
-    justify-content: flex-start;
-    align-items: center;
-    width: 100%;
-    max-width: 1200px; /* Adjust the max-width as needed */
-    margin: auto; /* Center the container on the page */
-    padding: 20px;
-}
-
-/* Optional: Set specific flex properties to the elements within the container if needed */
-.dashboard-element {
-    flex: 1; /* You can assign flex-grow values to specific children */
 }
