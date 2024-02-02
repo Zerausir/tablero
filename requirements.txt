@@ -22,7 +22,8 @@ Django==4.2.9
 django-bootstrap4==23.4
 django-plotly-dash==2.2.2
 djangorestframework==3.14.0
-dpd-components==0.1.0
+dpd-static-support==0.0.5
+dpd_components==0.1.0
 environs==10.2.0
 et-xmlfile==1.1.0
 Flask==3.0.0
@@ -71,6 +72,7 @@ typing_extensions==4.9.0
 tzdata==2023.4
 urllib3==2.1.0
 Werkzeug==3.0.1
+whitenoise==6.6.0
 xyzservices==2023.10.1
 zict==3.0.0
 zipp==3.17.0
