@@ -4,6 +4,7 @@ import dash
 import pandas as pd
 from dash import html, dash_table, dcc, callback
 from dash.dependencies import Input, Output
+import plotly.graph_objects as go
 
 from .services import process_data
 from .utils import update_table
@@ -16,6 +17,30 @@ app = DjangoDash(
     add_bootstrap_links=True,
     external_stylesheets=["/static/css/inner.css"]
 )
+
+
+# Function to create pie charts for each INDICADOR_CORTO
+def create_pie_charts(df):
+    grouped = df.groupby('INDICADOR_CORTO')['Nro. INFORME'].count().reset_index()
+    grouped['Porcentaje'] = (grouped['Nro. INFORME'] / 50) * 100
+
+    pie_charts = []
+    row = []
+    for i, (_, row_data) in enumerate(grouped.iterrows()):
+        fig = go.Figure(data=[
+            go.Pie(labels=['Avance', 'Restante'], values=[row_data['Porcentaje'], 100 - row_data['Porcentaje']],
+                   hole=0.3)])
+        fig.update_layout(title_text=f"Avance de {row_data['INDICADOR_CORTO']} ({row_data['Nro. INFORME']} informes)",
+                          title_x=0.5)
+        row.append(dcc.Graph(figure=fig))
+
+        # Cada 3 gráficos, o si es el último gráfico, agregamos la fila actual a pie_charts y comenzamos una nueva fila
+        if (i + 1) % 3 == 0 or i == len(grouped) - 1:
+            pie_charts.append(html.Div(row, style={'display': 'flex', 'justify-content': 'space-around'}))
+            row = []
+
+    return pie_charts
+
 
 app.layout = html.Div(children=[
     # Filtros Dropdown
@@ -61,6 +86,9 @@ app.layout = html.Div(children=[
     ),
     html.Button("Descargar Excel", id="btn_excel"),
     dcc.Download(id="download-excel"),
+
+    # Div for pie charts
+    html.Div(id='pie-charts-container'),
 ])
 
 
@@ -85,6 +113,17 @@ def download_excel(n_clicks, table_data):
         raise dash.exceptions.PreventUpdate
     df = pd.DataFrame(table_data)
     return dcc.send_data_frame(df.to_excel, filename="datos_descargados.xlsx", index=False)
+
+
+# Callback to update pie charts based on the filtered data
+@app.callback(
+    Output('pie-charts-container', 'children'),
+    [Input('table1', 'data')]
+)
+def update_pie_charts(table_data):
+    filtered_df = pd.DataFrame(table_data)
+    pie_charts = create_pie_charts(filtered_df)
+    return pie_charts
 
 
 if __name__ == '__main__':
