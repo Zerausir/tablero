@@ -8,6 +8,7 @@ from pandas import DataFrame
 
 from .utils import translate_month, read_csv_file, convert_start_date, convert_end_date
 from .api.api_client import get_options_from_index_service_api
+pd.set_option('future.no_silent_downcasting', True)
 
 CITIES1 = settings.CITIES1
 

@@ -116,11 +116,6 @@ def create_dash_datatable(table_id: str, dataframe: pd.DataFrame) -> dash_table.
             'overflow': 'hidden',
             'textOverflow': 'ellipsis',
         },
-        style_cell_conditional=[  # Conditional styling to handle different column types or specific columns
-            {'if': {'column_id': c},
-             'textAlign': 'left'} for c in ['column_name_1', 'column_name_2']
-            # Example for text alignment, replace with your column names
-        ],
         style_header={  # Styling for the header to ensure it's consistent with the body
             'backgroundColor': 'white',
             'fontWeight': 'bold',
