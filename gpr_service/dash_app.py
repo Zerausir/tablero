@@ -1,46 +1,47 @@
 from django_plotly_dash import DjangoDash
 from django.conf import settings
-import dash
 import pandas as pd
 from dash import html, dash_table, dcc, callback
 from dash.dependencies import Input, Output
-import plotly.graph_objects as go
+from dash.exceptions import PreventUpdate
 
 from .services import process_data
-from .utils import update_table
+from .utils import update_table, download_excel, create_pie_charts, ccde01, ccde02, ccde03, ccde04, ccde11, ccdh01, \
+    ccds01, ccds03, ccds05, ccds08, ccds11, ccds12, ccds13, ccds16, ccds17, ccds18, ccds30, ccds31, ccds32, ccdr04
 
 # Process the data to get the final DataFrame
 df_final = process_data()
+
+# Define un diccionario para los calculadores de porcentaje
+calculators = {
+    'CCDE-01': ccde01,
+    'CCDE-02': ccde02,
+    'CCDE-03': ccde03,
+    'CCDE-04': ccde04,
+    'CCDE-11': ccde11,
+    'CCDH-01': ccdh01,
+    'CCDS-01': ccds01,
+    'CCDS-03': ccds03,
+    'CCDS-05': ccds05,
+    'CCDS-08': ccds08,
+    'CCDS-11': ccds11,
+    'CCDS-12': ccds12,
+    'CCDS-13': ccds13,
+    'CCDS-16': ccds16,
+    'CCDS-17': ccds17,
+    'CCDS-18': ccds18,
+    'CCDS-30': ccds30,
+    'CCDS-31': ccds31,
+    'CCDS-32': ccds32,
+    'CCDR-04': ccdr04
+    # Continúa según sea necesario
+}
 
 app = DjangoDash(
     name='GprApp',
     add_bootstrap_links=True,
     external_stylesheets=["/static/css/inner.css"]
 )
-
-
-# Function to create pie charts for each INDICADOR_CORTO
-def create_pie_charts(df):
-    grouped = df.groupby('INDICADOR_CORTO')['Nro. INFORME'].count().reset_index()
-    grouped['Porcentaje'] = (grouped['Nro. INFORME'] / 50) * 100
-
-    pie_charts = []
-    row = []
-    for i, (_, row_data) in enumerate(grouped.iterrows()):
-        fig = go.Figure(data=[
-            go.Pie(labels=['Avance', 'Restante'], values=[row_data['Porcentaje'], 100 - row_data['Porcentaje']],
-                   hole=0.3)])
-        fig.update_layout(title_text=f"Avance de {row_data['INDICADOR_CORTO']} ({row_data['Nro. INFORME']} informes)",
-                          title_x=0.5)
-        row.append(dcc.Graph(figure=fig))
-
-        # Cada 3 gráficos, o si es el último gráfico, agregamos la fila actual a pie_charts y comenzamos una nueva fila
-        if (i + 1) % 3 == 0 or i == len(grouped) - 1:
-            pie_charts.append(html.Div(row, style={'display': 'flex', 'justify-content': 'space-around'}))
-            row = []
-
-    return pie_charts
-
 
 app.layout = html.Div(children=[
     # Filtros Dropdown
@@ -88,7 +89,7 @@ app.layout = html.Div(children=[
     dcc.Download(id="download-excel"),
 
     # Div for pie charts
-    html.Div(id='pie-charts-container'),
+    html.Div(id='pie-charts-container', children=create_pie_charts(df_final, calculators)),
 ])
 
 
@@ -108,22 +109,22 @@ def update_table1(selected_indicador):
      Input('table1', 'data')],
     prevent_initial_call=True,
 )
-def download_excel(n_clicks, table_data):
-    if n_clicks is None:
-        raise dash.exceptions.PreventUpdate
-    df = pd.DataFrame(table_data)
-    return dcc.send_data_frame(df.to_excel, filename="datos_descargados.xlsx", index=False)
+def download_excel_callback(n_clicks, table_data):
+    return download_excel(n_clicks, table_data, 'table1')
 
 
 # Callback to update pie charts based on the filtered data
 @app.callback(
     Output('pie-charts-container', 'children'),
-    [Input('table1', 'data')]
+    [Input('table1', 'data'),
+     Input('filter-indicador', 'value')]
 )
-def update_pie_charts(table_data):
-    filtered_df = pd.DataFrame(table_data)
-    pie_charts = create_pie_charts(filtered_df)
-    return pie_charts
+def update_pie_charts(table_data, selected_indicadores):
+    # Crea un DataFrame vacío si no hay datos, de lo contrario convierte table_data en DataFrame
+    filtered_df = pd.DataFrame(table_data if table_data else [])
+
+    # Si hay indicadores seleccionados, pasa esta selección a create_pie_charts
+    return create_pie_charts(filtered_df, calculators, selected_indicadores)
 
 
 if __name__ == '__main__':
