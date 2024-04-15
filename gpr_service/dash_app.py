@@ -52,43 +52,70 @@ app.layout = html.Div(children=[
             placeholder='Filtrar por INDICADOR',
         ),
     ], style={'marginBottom': 10, 'marginTop': 10}),
-    # DataTable para mostrar los datos
-    dash_table.DataTable(
-        id='table1',
-        columns=[{"name": i, "id": i} for i in df_final.columns],
-        data=df_final.to_dict('records'),
-        style_table={'overflowX': 'auto', 'maxHeight': '1000px'},
-        style_cell={  # Default cell style
-            'minWidth': '100px', 'width': '150px', 'maxWidth': '300px',
-            'overflow': 'hidden',
-            'textOverflow': 'ellipsis',
-        },
-        style_header={  # Styling for the header to ensure it's consistent with the body
-            'backgroundColor': 'white',
-            'fontWeight': 'bold',
-            'textAlign': 'center',
-            'overflow': 'hidden',
-            'textOverflow': 'ellipsis',
-        },
-        editable=True,
-        sort_action="native",
-        sort_mode="multi",
-        column_selectable="single",
-        row_selectable="multi",
-        row_deletable=True,
-        selected_columns=[],
-        selected_rows=[],
-        page_action="native",
-        page_current=0,
-        page_size=100,
-        fixed_rows={'headers': True},
-    ),
-    html.Button("Descargar Excel", id="btn_excel"),
-    dcc.Download(id="download-excel"),
 
+    html.Button("Mostrar/Ocultar Datos", id="toggle-data-btn", n_clicks=0),
+    # DataTable para mostrar los datos
+    html.Div(id="datatable-container", style={'display': 'none'},
+             children=[dash_table.DataTable(id='table1', columns=[{"name": i, "id": i} for i in df_final.columns],
+                                            data=df_final.to_dict('records'),
+                                            style_table={'overflowX': 'auto', 'maxHeight': '1000px'},
+                                            style_cell={  # Default cell style
+                                                'minWidth': '100px', 'width': '150px', 'maxWidth': '300px',
+                                                'overflow': 'hidden',
+                                                'textOverflow': 'ellipsis',
+                                            },
+                                            style_header={
+                                                # Styling for the header to ensure it's consistent with the body
+                                                'backgroundColor': 'white',
+                                                'fontWeight': 'bold',
+                                                'textAlign': 'center',
+                                                'overflow': 'hidden',
+                                                'textOverflow': 'ellipsis',
+                                            },
+                                            editable=True,
+                                            sort_action="native",
+                                            sort_mode="multi",
+                                            column_selectable="single",
+                                            row_selectable="multi",
+                                            row_deletable=True,
+                                            selected_columns=[],
+                                            selected_rows=[],
+                                            page_action="native",
+                                            page_current=0,
+                                            page_size=100,
+                                            fixed_rows={'headers': True}),
+                       html.Button("Descargar Excel", id="btn_excel"),
+                       dcc.Download(id="download-excel"),
+                       ]
+             ),
     # Div for pie charts
-    html.Div(id='pie-charts-container', children=create_pie_charts(df_final, calculators)),
+    html.Div(id='pie-charts-container', children=create_pie_charts(df_final, calculators)
+             )
 ])
+
+
+@app.callback(
+    Output('datatable-container', 'style'),
+    [Input('toggle-data-btn', 'n_clicks')]
+)
+def toggle_datatable_visibility(n_clicks):
+    if n_clicks % 2 == 0:
+        return {'display': 'none'}
+    else:
+        return {'display': 'block'}
+
+
+@app.callback(
+    Output('pie-charts-container', 'children'),
+    [Input('table1', 'data'),
+     Input('filter-indicador', 'value')]
+)
+def update_pie_charts(table_data, selected_indicadores):
+    # Crea un DataFrame vacío si no hay datos, de lo contrario convierte table_data en DataFrame
+    filtered_df = pd.DataFrame(table_data if table_data else [])
+
+    # Si hay indicadores seleccionados, pasa esta selección a create_pie_charts
+    return create_pie_charts(filtered_df, calculators, selected_indicadores)
 
 
 # Callback para actualizar la DataTable basado en los filtros seleccionados
@@ -112,17 +139,6 @@ def download_excel_callback(n_clicks, table_data):
 
 
 # Callback to update pie charts based on the filtered data
-@app.callback(
-    Output('pie-charts-container', 'children'),
-    [Input('table1', 'data'),
-     Input('filter-indicador', 'value')]
-)
-def update_pie_charts(table_data, selected_indicadores):
-    # Crea un DataFrame vacío si no hay datos, de lo contrario convierte table_data en DataFrame
-    filtered_df = pd.DataFrame(table_data if table_data else [])
-
-    # Si hay indicadores seleccionados, pasa esta selección a create_pie_charts
-    return create_pie_charts(filtered_df, calculators, selected_indicadores)
 
 
 if __name__ == '__main__':
