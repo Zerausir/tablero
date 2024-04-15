@@ -2,7 +2,6 @@ import pandas as pd
 import dash
 import plotly.graph_objects as go
 from dash import dcc, html
-from dash.exceptions import PreventUpdate
 
 
 def update_table(dataframe, selected_indicador, table_id):
@@ -35,8 +34,14 @@ def create_pie_charts(df, calculators, selected_indicadores=None):
         calculador = calculators.get(indicador)
         porcentaje = calculador(nro_informes) if calculador else 0  # Asegúrate de que hay una función calculador
 
-        fig = go.Figure(data=[go.Pie(labels=['Avance', 'Restante'], values=[porcentaje, 100 - porcentaje], hole=0.3)])
-        fig.update_layout(title_text=f"Avance de {indicador} ({nro_informes} informes)", title_x=0.5)
+        # Define los colores para cada parte del pie chart
+        colores = ['#007BFF', '#D62828']  # Azul para 'Avance', rojo para 'Restante'
+
+        # Nota que hemos cambiado el orden en los labels y values aquí para que 'Avance' sea primero
+        fig = go.Figure(data=[go.Pie(labels=['Avance', 'Restante'], values=[porcentaje, 100 - porcentaje], hole=0.3,
+                                     marker=dict(colors=colores), sort=False)])
+        fig.update_layout(title_text=f"Avance indicador {indicador} ({nro_informes} informes)", title_x=0.5,
+                          legend=dict(traceorder='normal'))
         row.append(dcc.Graph(figure=fig))
 
         # Añadir los gráficos a pie_charts en filas de tres

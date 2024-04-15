@@ -1,9 +1,8 @@
 from django_plotly_dash import DjangoDash
 from django.conf import settings
 import pandas as pd
-from dash import html, dash_table, dcc, callback
+from dash import html, dash_table, dcc
 from dash.dependencies import Input, Output
-from dash.exceptions import PreventUpdate
 
 from .services import process_data
 from .utils import update_table, download_excel, create_pie_charts, ccde01, ccde02, ccde03, ccde04, ccde11, ccdh01, \
@@ -53,7 +52,6 @@ app.layout = html.Div(children=[
             placeholder='Filtrar por INDICADOR',
         ),
     ], style={'marginBottom': 10, 'marginTop': 10}),
-
     # DataTable para mostrar los datos
     dash_table.DataTable(
         id='table1',
