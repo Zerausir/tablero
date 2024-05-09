@@ -1,7 +1,28 @@
 import pandas as pd
-import dash
 import plotly.graph_objects as go
 from dash import dcc, html
+from dash.exceptions import PreventUpdate
+from datetime import date, timedelta
+
+
+def calculate_disabled_days_for_year(year):
+    # Calcula el último día de cada mes en el año especificado
+    def last_day_of_month(year, month):
+        if month == 12:
+            return date(year, month, 31)
+        return date(year, month + 1, 1) - timedelta(days=1)
+
+    # Lista de los últimos días de cada mes en el año especificado
+    last_days = [last_day_of_month(year, month) for month in range(1, 13)]
+
+    # Genera una lista de todos los días del año especificado
+    all_days = [date(year, month, day) for month in range(1, 13)
+                for day in range(1, (last_day_of_month(year, month).day + 1))]
+
+    # Filtra los días que no son el último día de cada mes
+    disabled_days = [day for day in all_days if day not in last_days]
+
+    return disabled_days
 
 
 def update_table(dataframe, selected_indicador, table_id):
@@ -13,124 +34,130 @@ def update_table(dataframe, selected_indicador, table_id):
     return filtered_df.to_dict('records')
 
 
-def download_excel(n_clicks, table_data, table_id):
+def download_excel(n_clicks, dataframe):
     if n_clicks is None:
-        raise dash.exceptions.PreventUpdate
-    df = pd.DataFrame(table_data)
-    return dcc.send_data_frame(df.to_excel, filename="datos_descargados.xlsx", index=False)
+        raise PreventUpdate
+    # Ensure that dataframe is a DataFrame
+    if isinstance(dataframe, pd.DataFrame):
+        return dcc.send_data_frame(dataframe.to_excel, filename="datos_descargados.xlsx", index=False)
+    else:
+        raise ValueError("The provided data for download is not a pandas DataFrame.")
 
 
-# En utils.py, modifica create_pie_charts temporalmente para retornar solo un gráfico.
 def create_pie_charts(df, calculators, selected_indicadores=None):
     pie_charts = []
-    row = []
+    for indicador in (selected_indicadores or calculators.keys()):
+        nro_informes = df[df['INDICADOR_CORTO'] == indicador].shape[0] if 'INDICADOR_CORTO' in df.columns else 0
+        porcentaje = calculators[indicador](nro_informes) if calculators.get(indicador) else 0
+        fig = go.Figure(data=[
+            go.Pie(
+                labels=['Avance', 'Restante'],
+                values=[porcentaje, 100 - porcentaje],
+                hole=.3,
+                marker=dict(colors=['#007BFF', '#D62828']),
+            )
+        ])
+        fig.update_layout(
+            title_text=f"Avance indicador {indicador} ({nro_informes} informes)",
+            title_x=0.5,
+            legend=dict(traceorder='normal', orientation="h", x=0.5, xanchor="center"),
+            margin=dict(l=20, r=20, t=45, b=20),  # Establece márgenes internos
+            uniformtext_minsize=12,
+            uniformtext_mode='hide'
+        )
 
-    # Define cuáles indicadores usar: todos de calculators o solo los seleccionados
-    indicadores_a_usar = selected_indicadores if selected_indicadores else calculators.keys()
+        pie_chart_div = html.Div([
+            dcc.Graph(
+                figure=fig,
+                id={
+                    'type': 'dynamic-pie-chart',
+                    'index': indicador
+                },
+            ),
+            html.Div(id={'type': 'details', 'index': indicador}, className='verifiable-details')
+            # Div para los detalles
+        ], className='six columns')
 
-    for indicador in indicadores_a_usar:
-        # Encuentra la cantidad de informes para el indicador, si no hay, usa 0
-        nro_informes = df[df['INDICADOR_CORTO'] == indicador]['Nro. INFORME'].count() if not df.empty else 0
-        calculador = calculators.get(indicador)
-        porcentaje = calculador(nro_informes) if calculador else 0  # Asegúrate de que hay una función calculador
+        pie_charts.append(pie_chart_div)
 
-        # Define los colores para cada parte del pie chart
-        colores = ['#007BFF', '#D62828']  # Azul para 'Avance', rojo para 'Restante'
-
-        # Nota que hemos cambiado el orden en los labels y values aquí para que 'Avance' sea primero
-        fig = go.Figure(data=[go.Pie(labels=['Avance', 'Restante'], values=[porcentaje, 100 - porcentaje], hole=0.3,
-                                     marker=dict(colors=colores), sort=False)])
-        fig.update_layout(title_text=f"Avance indicador {indicador} ({nro_informes} informes)", title_x=0.5,
-                          legend=dict(traceorder='normal'))
-        row.append(dcc.Graph(figure=fig))
-
-        # Añadir los gráficos a pie_charts en filas de tres
-        if len(row) == 3:
-            pie_charts.append(html.Div(row, style={'display': 'flex', 'justify-content': 'space-around'}))
-            row = []
-
-    # Añadir la última fila si tiene menos de tres gráficos
-    if row:
-        pie_charts.append(html.Div(row, style={'display': 'flex', 'justify-content': 'space-around'}))
-
-    return pie_charts
+    return html.Div(pie_charts, className='row')
 
 
 def ccde01(nro_informes):
-    return (nro_informes / 60) * 100 if nro_informes else 0
+    return min((nro_informes / 60) * 100, 100) if nro_informes else 0
 
 
 def ccde02(nro_informes):
-    return (nro_informes / 2) * 100 if nro_informes else 0
+    return min((nro_informes / 2) * 100, 100) if nro_informes else 0
 
 
 def ccde03(nro_informes):
-    return (nro_informes / 6) * 100 if nro_informes else 0
+    return min((nro_informes / 6) * 100, 100) if nro_informes else 0
 
 
 def ccde04(nro_informes):
-    return (nro_informes / 140) * 100 if nro_informes else 0
+    return min((nro_informes / 140) * 100, 100) if nro_informes else 0
 
 
 def ccde11(nro_informes):
-    return (nro_informes / 2) * 100 if nro_informes else 0
+    return min((nro_informes / 2) * 100, 100) if nro_informes else 0
 
 
 def ccdh01(nro_informes):
-    return (nro_informes / 12) * 100 if nro_informes else 0
+    return min((nro_informes / 12) * 100, 100) if nro_informes else 0
 
 
 def ccds01(nro_informes):
-    return (nro_informes / 51) * 100 if nro_informes else 0
+    return min((nro_informes / 51) * 100, 100) if nro_informes else 0
 
 
 def ccds03(nro_informes):
-    return (nro_informes / 2) * 100 if nro_informes else 0
+    return min((nro_informes / 2) * 100, 100) if nro_informes else 0
 
 
 def ccds05(nro_informes):
-    return (nro_informes / 2) * 100 if nro_informes else 0
+    return min((nro_informes / 2) * 100, 100) if nro_informes else 0
 
 
 def ccds08(nro_informes):
-    return (nro_informes / 3) * 100 if nro_informes else 0
+    return min((nro_informes / 3) * 100, 100) if nro_informes else 0
 
 
 def ccds11(nro_informes):
-    return (nro_informes / 4) * 100 if nro_informes else 0
+    return min((nro_informes / 4) * 100, 100) if nro_informes else 0
 
 
 def ccds12(nro_informes):
-    return (nro_informes / 1) * 100 if nro_informes else 0
+    return min((nro_informes / 1) * 100, 100) if nro_informes else 0
 
 
 def ccds13(nro_informes):
-    return (nro_informes / 10) * 100 if nro_informes else 0
+    return min((nro_informes / 10) * 100, 100) if nro_informes else 0
 
 
 def ccds16(nro_informes):
-    return (nro_informes / 15) * 100 if nro_informes else 0
+    return min((nro_informes / 15) * 100, 100) if nro_informes else 0
 
 
 def ccds17(nro_informes):
-    return (nro_informes / 37) * 100 if nro_informes else 0
+    return min((nro_informes / 37) * 100, 100) if nro_informes else 0
 
 
 def ccds18(nro_informes):
-    return (nro_informes / 8) * 100 if nro_informes else 0
+    return min((nro_informes / 8) * 100, 100) if nro_informes else 0
 
 
 def ccds30(nro_informes):
-    return (nro_informes / 7) * 100 if nro_informes else 0
+    return min((nro_informes / 7) * 100, 100) if nro_informes else 0
 
 
 def ccds31(nro_informes):
-    return (nro_informes / 1) * 100 if nro_informes else 0
+    return min((nro_informes / 1) * 100, 100) if nro_informes else 0
 
 
 def ccds32(nro_informes):
-    return (nro_informes / 12) * 100 if nro_informes else 0
+    return min((nro_informes / 12) * 100, 100) if nro_informes else 0
 
 
 def ccdr04(nro_informes):
-    return (nro_informes / 23) * 100 if nro_informes else 0
+    return min((nro_informes / 23) * 100, 100) if nro_informes else 0

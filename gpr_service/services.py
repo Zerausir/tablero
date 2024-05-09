@@ -1,7 +1,9 @@
 from django.conf import settings
 import pandas as pd
+import numpy as np
 import os
 import shutil
+import datetime
 
 
 def load_environment_variables():
@@ -10,7 +12,9 @@ def load_environment_variables():
         'SERVER_ROUTE_GPR': settings.SERVER_ROUTE_GPR,
         'FILE_INFORMES_GPR_2023': settings.FILE_INFORMES_GPR_2023,
         'FILE_INFORMES_GPR': settings.FILE_INFORMES_GPR,
+        'FILE_PACT_2024': settings.FILE_PACT_2024,
         'COLUMNAS_INFORMES_GPR': settings.COLUMNAS_INFORMES_GPR,
+        'SERVER_ROUTE_PACT_2024': settings.SERVER_ROUTE_PACT_2024,
         'INDICADORES_GPR_CCDE': settings.INDICADORES_GPR_CCDE,
         'INDICADORES_GPR_CCDH': settings.INDICADORES_GPR_CCDH,
         'INDICADORES_GPR_CCDS': settings.INDICADORES_GPR_CCDS,
@@ -18,6 +22,15 @@ def load_environment_variables():
         'RUTA_CCDE_01_ENE': settings.RUTA_CCDE_01_ENE,
         'RUTA_CCDE_01_FEB': settings.RUTA_CCDE_01_FEB,
         'RUTA_CCDE_01_MAR': settings.RUTA_CCDE_01_MAR,
+        'RUTA_CCDE_01_ABR': settings.RUTA_CCDE_01_ABR,
+        'RUTA_CCDE_01_MAY': settings.RUTA_CCDE_01_MAY,
+        'RUTA_CCDE_01_JUN': settings.RUTA_CCDE_01_JUN,
+        'RUTA_CCDE_01_JUL': settings.RUTA_CCDE_01_JUL,
+        'RUTA_CCDE_01_AGO': settings.RUTA_CCDE_01_AGO,
+        'RUTA_CCDE_01_SEP': settings.RUTA_CCDE_01_SEP,
+        'RUTA_CCDE_01_OCT': settings.RUTA_CCDE_01_OCT,
+        'RUTA_CCDE_01_NOV': settings.RUTA_CCDE_01_NOV,
+        'RUTA_CCDE_01_DIC': settings.RUTA_CCDE_01_DIC,
         'RUTA_CCDE_02': settings.RUTA_CCDE_02,
         'RUTA_CCDE_03': settings.RUTA_CCDE_03,
         'RUTA_CCDE_04': settings.RUTA_CCDE_04,
@@ -55,31 +68,29 @@ def load_environment_variables():
 def read_excel_data2023(server_route, file_informes, columnas_informes):
     # Read DATOS sheet
     df_datos = pd.read_excel(f'{server_route}/{file_informes}', sheet_name='DATOS')
-    df_datos[['Nro. ACTIVIDAD', 'INDICADOR AÑO']] = df_datos[['Nro. ACTIVIDAD', 'INDICADOR AÑO']].astype('int')
-    df_datos[
-        ['ACTIVIDAD', 'RAZÓN SOCIAL', 'NOMBRE DEL SISTEMA', 'FRECUENCIA / CANAL', 'CATEGORÍA',
-         'DOCUMENTO / ANTECEDENTE',
-         'FECHA ANTECEDENTE', 'ASUNTO', 'INDICADOR', 'PROVINCIA', 'LUGAR']] = df_datos[
-        ['ACTIVIDAD', 'RAZÓN SOCIAL', 'NOMBRE DEL SISTEMA', 'FRECUENCIA / CANAL', 'CATEGORÍA',
-         'DOCUMENTO / ANTECEDENTE',
-         'FECHA ANTECEDENTE', 'ASUNTO', 'INDICADOR', 'PROVINCIA', 'LUGAR']].astype('str')
+    df_datos.loc[:, ['Nro. ACTIVIDAD', 'INDICADOR AÑO']] = df_datos[['Nro. ACTIVIDAD', 'INDICADOR AÑO']].astype('int')
+    df_datos.loc[:, ['ACTIVIDAD', 'RAZÓN SOCIAL', 'NOMBRE DEL SISTEMA', 'FRECUENCIA / CANAL', 'CATEGORÍA',
+                     'DOCUMENTO / ANTECEDENTE', 'FECHA ANTECEDENTE', 'ASUNTO', 'INDICADOR', 'PROVINCIA', 'LUGAR']] = \
+        df_datos[
+            ['ACTIVIDAD', 'RAZÓN SOCIAL', 'NOMBRE DEL SISTEMA', 'FRECUENCIA / CANAL', 'CATEGORÍA',
+             'DOCUMENTO / ANTECEDENTE', 'FECHA ANTECEDENTE', 'ASUNTO', 'INDICADOR', 'PROVINCIA', 'LUGAR']].astype('str')
 
     # Read INFORMES sheet
     df_informes = pd.read_excel(f'{server_route}/{file_informes}', sheet_name='INFORMES', skiprows=1,
                                 usecols=columnas_informes)
-    df_informes[['Nro. INFORME', 'RESPONSABLE DE ACTIVIDAD', 'REQUIRIÓ INSPECCIÓN', 'EQUIPO UTILIZADO',
-                 'OBSERVACIONES']] = df_informes[
+    df_informes.loc[:, ['Nro. INFORME', 'RESPONSABLE DE ACTIVIDAD', 'REQUIRIÓ INSPECCIÓN', 'EQUIPO UTILIZADO',
+                        'OBSERVACIONES']] = df_informes[
         ['Nro. INFORME', 'RESPONSABLE DE ACTIVIDAD', 'REQUIRIÓ INSPECCIÓN', 'EQUIPO UTILIZADO',
          'OBSERVACIONES']].astype('str')
-    df_informes['FECHA DE INFORME'] = pd.to_datetime(df_informes['FECHA DE INFORME'])
+    df_informes.loc[:, 'FECHA DE INFORME'] = pd.to_datetime(df_informes['FECHA DE INFORME'])
 
     # Merge the dataframes
     df_final = pd.merge(df_datos, df_informes, on='Nro. ACTIVIDAD', how='outer')
-    df_final['RUTA'] = pd.NA
-    df_final['INDICADOR CORTO'] = pd.NA
-    df_final['INFORME_FINALIZADO_SERVIDOR'] = pd.NA
-    df_final['INFORME_FINALIZADO_RUTA'] = pd.NA
-    df_final['RUTA_SERVER'] = pd.NA
+    df_final.loc[:, 'RUTA'] = pd.NA
+    df_final.loc[:, 'INDICADOR CORTO'] = pd.NA
+    df_final.loc[:, 'INFORME_FINALIZADO_SERVIDOR'] = pd.NA
+    df_final.loc[:, 'INFORME_FINALIZADO_RUTA'] = pd.NA
+    df_final.loc[:, 'RUTA_SERVER'] = pd.NA
     return df_final
 
 
@@ -166,8 +177,10 @@ def sincronizar_informes(row, server_route, pdf_files):
             shutil.copyfile(f'{row['RUTA']}/{archivo_ruta}', f'{server_route}/{archivo_ruta}')
 
 
-def process_data():
+def process_data(fecha_str='2024-03-31'):
     env_vars = load_environment_variables()
+
+    fecha_limite = pd.to_datetime(fecha_str) + pd.Timedelta(days=11)
 
     df_original2023 = read_excel_data2023(env_vars['SERVER_ROUTE_GPR_2023'], env_vars['FILE_INFORMES_GPR_2023'],
                                           env_vars['COLUMNAS_INFORMES_GPR'])
@@ -191,8 +204,170 @@ def process_data():
     # df_final = df_original_rutas.query("INDICADOR_CORTO != 'Ninguno' and RUTA_SERVER =='SI'")
     df_final = df_original_rutas.sort_values(by='INDICADOR_CORTO')
     df_final = df_final[
-        ['INDICADOR_CORTO', 'INDICADOR', 'Nro. ACTIVIDAD', 'NOMBRE DEL SISTEMA', 'CATEGORÍA', 'DOCUMENTO / ANTECEDENTE',
-         'FECHA ANTECEDENTE', 'RUTA_SERVER', 'Nro INSPECCIONES', 'Nro. INFORME', 'FECHA DE INFORME',
-         'RESPONSABLE DE ACTIVIDAD']]
+        ['INDICADOR_CORTO', 'Nro. ACTIVIDAD', 'NOMBRE DEL SISTEMA', 'CATEGORÍA', 'DOCUMENTO / ANTECEDENTE',
+         'RUTA_SERVER', 'Nro INSPECCIONES', 'Nro. INFORME', 'FECHA DE INFORME', 'RESPONSABLE DE ACTIVIDAD']]
+    df_final = df_final[df_final['FECHA DE INFORME'] <= fecha_limite]
 
     return df_final
+
+
+"""CARGA DE DATOS PACT 2024"""
+
+
+def cargar_datos1(ruta_archivo):
+    xl = pd.ExcelFile(ruta_archivo)
+    return xl
+
+
+def leer_hoja(xl, nombre_hoja, corto_len=7):
+    df = xl.parse(nombre_hoja)
+    df['INDICADOR_CORTO'] = df['INDICADOR'].str[:corto_len]
+    return df
+
+
+def seleccionar_columnas(df, config):
+    df = df.loc[:, config['columns']]
+    df.rename(columns=config['rename_columns'], inplace=True)
+    df.loc[:, 'TIPO'] = df['TIPO'].str.upper()
+    df_filtered = df[df['UNIDAD_ADMINISTRATIVA'] == config['UNIDAD_ADMINISTRATIVA']].iloc[:-1]
+    return df_filtered
+
+
+def concatenar_dataframes(dataframes):
+    resultado = pd.concat(dataframes, axis=0)
+    return resultado.reset_index(drop=True)
+
+
+def procesar_mes_con_fecha(dataframe, fecha_str):
+    fecha = datetime.datetime.strptime(fecha_str, '%Y-%m-%d')
+    meses = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"]
+    # indice_mes = fecha.month - 2 if fecha.day <= 7 and fecha.month > 1 else 11 if fecha.day <= 7 else fecha.month - 1
+    indice_mes = fecha.month - 1
+    meses_evaluar = meses[:indice_mes + 1]
+
+    dataframe.loc[:, 'CUMPLIR'] = 0.0  # Asegurarse de inicializar con un valor flotante si es necesario
+    for index, row in dataframe.iterrows():
+        if row['TIPO'] == 'CONTINUO':
+            valores_no_nulos = row[meses_evaluar].dropna()
+            if not valores_no_nulos.empty:
+                dataframe.loc[index, 'CUMPLIR'] = valores_no_nulos.sum()
+        else:  # Para tipo DISCRETO
+            valor_mes = row[meses_evaluar[-1]] if meses_evaluar else np.nan
+            # Asegurar que el valor_mes es del tipo correcto antes de asignar
+            valor_correcto = float(valor_mes) if pd.notna(valor_mes) else 0.0
+            dataframe.loc[index, 'CUMPLIR'] = float(valor_correcto)
+
+    return dataframe
+
+
+def pact_2024(fecha_str='2024-01-31'):
+    env_vars = load_environment_variables()
+    ruta_archivo = f'{env_vars['SERVER_ROUTE_PACT_2024']}/{env_vars['FILE_PACT_2024']}'
+    xl = cargar_datos1(ruta_archivo)
+    configs = {
+        'CCDE': {
+            'columns': [
+                "Unidad Administrativa", "INDICADOR_CORTO", "INDICADOR", "FORMULA", "Discreto / Continuo",
+                "PLANIFICADA",
+                "META ANUAL", "Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic",
+                "OBSERVACIONES"
+            ],
+            'rename_columns': {
+                "Unidad Administrativa": "UNIDAD_ADMINISTRATIVA",
+                "Discreto / Continuo": "TIPO",
+                "META ANUAL": "META_ANUAL"
+            },
+            'UNIDAD_ADMINISTRATIVA': 'CZO2'
+        },
+        'CCDH': {
+            'columns': [
+                "Unidad Administrativa", "INDICADOR_CORTO", "INDICADOR", "FORMULA", "Discreto / Continuo",
+                "CANTIDAD Planificada",
+                "META ANUAL", "Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic",
+                "OBSERVACIONES"
+            ],
+            'rename_columns': {
+                "Unidad Administrativa": "UNIDAD_ADMINISTRATIVA",
+                "Discreto / Continuo": "TIPO",
+                "CANTIDAD Planificada": "PLANIFICADA",
+                "META ANUAL": "META_ANUAL"
+            },
+            'UNIDAD_ADMINISTRATIVA': 'CZO2'
+        },
+        'CCDR': {
+            'columns': [
+                "Unidad Administrativa", "INDICADOR_CORTO", "INDICADOR", "FORMULA", "DISCRETO / CONTINUO",
+                "PLANIFICADA", "META ANUAL - Número de Actividades de Control (Programadas)", "Ene", "Feb", "Mar",
+                "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic", "OBSERVACIONES"
+            ],
+            'rename_columns': {
+                "Unidad Administrativa": "UNIDAD_ADMINISTRATIVA",
+                "DISCRETO / CONTINUO": "TIPO",
+                "META ANUAL - Número de Actividades de Control (Programadas)": "META_ANUAL"
+            },
+            'UNIDAD_ADMINISTRATIVA': 'CZO2'
+        },
+        'CCDS': {
+            'columns': [
+                "Unidad Administrativa", "INDICADOR_CORTO", "INDICADOR", "FORMULA", "Discreto / Continuo",
+                "CANTIDAD Planificada / Estimada", "META ANUAL - Número de Actividades de Control (Programadas)", "Ene",
+                "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic", "OBSERVACIONES"
+            ],
+            'rename_columns': {
+                "Unidad Administrativa": "UNIDAD_ADMINISTRATIVA",
+                "Discreto / Continuo": "TIPO",
+                "CANTIDAD Planificada / Estimada": "PLANIFICADA",
+                "META ANUAL - Número de Actividades de Control (Programadas)": "META_ANUAL"
+            },
+            'UNIDAD_ADMINISTRATIVA': 'CZO2'
+        }
+        # Agrega aquí configuraciones adicionales para otras hojas
+    }
+    dataframes = []
+    for hoja, config in configs.items():
+        df = leer_hoja(xl, hoja)
+        df = seleccionar_columnas(df, config)
+        dataframes.append(df)
+    resultado = procesar_mes_con_fecha(concatenar_dataframes(dataframes), fecha_str)
+    return resultado
+
+
+"""REVISIÓN VERIFICABLES A LA FECHA"""
+
+
+def preparar_datos(df):
+    # Convertir la columna 'FECHA DE INFORME' a tipo datetime
+    df['FECHA DE INFORME'] = pd.to_datetime(df['FECHA DE INFORME'])
+
+    # Crear la columna 'MES' extrayendo el nombre del mes en formato abreviado español
+    meses_abreviados = {
+        1: "Ene", 2: "Feb", 3: "Mar", 4: "Abr", 5: "May", 6: "Jun",
+        7: "Jul", 8: "Ago", 9: "Sep", 10: "Oct", 11: "Nov", 12: "Dic"
+    }
+    df['MES'] = df['FECHA DE INFORME'].dt.month.map(meses_abreviados)
+    return df
+
+
+def informes_acumulados_por_fecha(df, fecha_final):
+    # Convertir la cadena de fecha de entrada a tipo datetime si es necesario
+    if isinstance(fecha_final, str):
+        fecha_final = pd.to_datetime(fecha_final)
+
+    # Filtrar los datos para incluir solo hasta la fecha especificada
+    df_filtrado = df[df['FECHA DE INFORME'] <= fecha_final]
+
+    # Agrupar por 'INDICADOR_CORTO' y contar las filas por grupo
+    df_resultado = df_filtrado.groupby('INDICADOR_CORTO').size().reset_index(name='CANTIDAD_VERIFICABLES')
+    return df_resultado
+
+
+def verificables(data, fecha_str='2024-01-31'):
+    data_preparada = preparar_datos(data)
+    fecha_con_dias_adicionales = pd.to_datetime(fecha_str) + pd.Timedelta(days=11)
+    resultado = informes_acumulados_por_fecha(data_preparada, fecha_con_dias_adicionales)
+    return resultado
+
+
+def pac_verificables(df1, df2):
+    resultado = pd.merge(df1, df2, how='outer', on='INDICADOR_CORTO')
+    return resultado

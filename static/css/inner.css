@@ -110,4 +110,27 @@ body {
     box-shadow: 0 8px 16px 0 rgba(0,0,0,0.2);
 }
 
+.row {
+    display: flex;
+    flex-wrap: wrap;
+    margin-right: -15px;
+    margin-left: -15px;
+}
+
+.six.columns {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 400px;  /* Ajusta esta altura según sea necesario */
+    padding-right: 15px;
+    padding-left: 15px;
+    box-sizing: border-box;
+}
+
+@media only screen and (max-width: 600px) {
+    .six.columns {
+        width: 100%;
+    }
+}
+
 /* Additional custom styles can be added below */
