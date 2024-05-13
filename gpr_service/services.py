@@ -1,9 +1,9 @@
 from django.conf import settings
 import pandas as pd
-import numpy as np
 import os
 import shutil
 import datetime
+from functools import lru_cache
 
 
 def load_environment_variables():
@@ -13,6 +13,9 @@ def load_environment_variables():
         'FILE_INFORMES_GPR_2023': settings.FILE_INFORMES_GPR_2023,
         'FILE_INFORMES_GPR': settings.FILE_INFORMES_GPR,
         'FILE_PACT_2024': settings.FILE_PACT_2024,
+        'FILE_INDICADORES_CCDE': settings.FILE_INDICADORES_CCDE,
+        'FILE_INDICADORES_CCDR': settings.FILE_INDICADORES_CCDR,
+        'FILE_INDICADORES_CCDS': settings.FILE_INDICADORES_CCDS,
         'COLUMNAS_INFORMES_GPR': settings.COLUMNAS_INFORMES_GPR,
         'SERVER_ROUTE_PACT_2024': settings.SERVER_ROUTE_PACT_2024,
         'INDICADORES_GPR_CCDE': settings.INDICADORES_GPR_CCDE,
@@ -201,7 +204,6 @@ def process_data(fecha_str='2024-03-31'):
                            inplace=True)
     df_original2024['RUTA_SERVER'] = pd.NA
     df_original_rutas = create_ruta2_informe_df(env_vars, df_original2023, df_original2024)
-    # df_final = df_original_rutas.query("INDICADOR_CORTO != 'Ninguno' and RUTA_SERVER =='SI'")
     df_final = df_original_rutas.sort_values(by='INDICADOR_CORTO')
     df_final = df_final[
         ['INDICADOR_CORTO', 'Nro. ACTIVIDAD', 'NOMBRE DEL SISTEMA', 'CATEGORÍA', 'DOCUMENTO / ANTECEDENTE',
@@ -211,15 +213,25 @@ def process_data(fecha_str='2024-03-31'):
     return df_final
 
 
+@lru_cache(maxsize=32)
+def process_data_cached(fecha_str='2024-03-31'):
+    return process_data(fecha_str)
+
+
 """CARGA DE DATOS PACT 2024"""
 
 
 def cargar_datos1(ruta_archivo):
-    xl = pd.ExcelFile(ruta_archivo)
-    return xl
+    return pd.ExcelFile(ruta_archivo)
 
 
-def leer_hoja(xl, nombre_hoja, corto_len=7):
+def cargar_datos2(ruta_archivo):
+    data = pd.read_excel(ruta_archivo)
+    return data
+
+
+@lru_cache(maxsize=10)
+def leer_hoja_cached(xl, nombre_hoja, corto_len=7):
     df = xl.parse(nombre_hoja)
     df['INDICADOR_CORTO'] = df['INDICADOR'].str[:corto_len]
     return df
@@ -238,31 +250,25 @@ def concatenar_dataframes(dataframes):
     return resultado.reset_index(drop=True)
 
 
-def procesar_mes_con_fecha(dataframe, fecha_str):
-    fecha = datetime.datetime.strptime(fecha_str, '%Y-%m-%d')
-    meses = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"]
-    # indice_mes = fecha.month - 2 if fecha.day <= 7 and fecha.month > 1 else 11 if fecha.day <= 7 else fecha.month - 1
-    indice_mes = fecha.month - 1
-    meses_evaluar = meses[:indice_mes + 1]
+def denominadores_indicadores_dinamicos(ruta1, ruta2, ruta3):
+    denominadores_CCDE = cargar_datos2(ruta1)
+    denominadores_CCDR = cargar_datos2(ruta2)
+    denominadores_CCDS = cargar_datos2(ruta3)
+    # Set the 'INDICADOR_CORTO' column as the index for each DataFrame
+    denominadores_CCDE.set_index('INDICADOR_CORTO', inplace=True)
+    denominadores_CCDR.set_index('INDICADOR_CORTO', inplace=True)
+    denominadores_CCDS.set_index('INDICADOR_CORTO', inplace=True)
 
-    dataframe.loc[:, 'CUMPLIR'] = 0.0  # Asegurarse de inicializar con un valor flotante si es necesario
-    for index, row in dataframe.iterrows():
-        if row['TIPO'] == 'CONTINUO':
-            valores_no_nulos = row[meses_evaluar].dropna()
-            if not valores_no_nulos.empty:
-                dataframe.loc[index, 'CUMPLIR'] = valores_no_nulos.sum()
-        else:  # Para tipo DISCRETO
-            valor_mes = row[meses_evaluar[-1]] if meses_evaluar else np.nan
-            # Asegurar que el valor_mes es del tipo correcto antes de asignar
-            valor_correcto = float(valor_mes) if pd.notna(valor_mes) else 0.0
-            dataframe.loc[index, 'CUMPLIR'] = float(valor_correcto)
-
-    return dataframe
+    resultado = pd.concat([denominadores_CCDE, denominadores_CCDR, denominadores_CCDS], axis=0)
+    return resultado.reset_index()
 
 
 def pact_2024(fecha_str='2024-01-31'):
     env_vars = load_environment_variables()
     ruta_archivo = f'{env_vars['SERVER_ROUTE_PACT_2024']}/{env_vars['FILE_PACT_2024']}'
+    ruta_discretos_CCDE = f'{env_vars['SERVER_ROUTE_PACT_2024']}/{env_vars['FILE_INDICADORES_CCDE']}'
+    ruta_discretos_CCDR = f'{env_vars['SERVER_ROUTE_PACT_2024']}/{env_vars['FILE_INDICADORES_CCDR']}'
+    ruta_discretos_CCDS = f'{env_vars['SERVER_ROUTE_PACT_2024']}/{env_vars['FILE_INDICADORES_CCDS']}'
     xl = cargar_datos1(ruta_archivo)
     configs = {
         'CCDE': {
@@ -325,11 +331,78 @@ def pact_2024(fecha_str='2024-01-31'):
     }
     dataframes = []
     for hoja, config in configs.items():
-        df = leer_hoja(xl, hoja)
+        df = leer_hoja_cached(xl, hoja)
         df = seleccionar_columnas(df, config)
         dataframes.append(df)
-    resultado = procesar_mes_con_fecha(concatenar_dataframes(dataframes), fecha_str)
+    resultado = concatenar_dataframes(dataframes)
+    denom_ind_din = denominadores_indicadores_dinamicos(ruta_discretos_CCDE, ruta_discretos_CCDR, ruta_discretos_CCDS)
+    resultado = pd.merge(resultado, denom_ind_din, how='outer', on=['UNIDAD_ADMINISTRATIVA', 'INDICADOR_CORTO'])
     return resultado
+
+
+def procesar_mes_con_fecha(dataframe, fecha_str):
+    fecha = datetime.datetime.strptime(fecha_str, '%Y-%m-%d')
+    meses = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"]
+    indice_mes = fecha.month - 1
+    meses_evaluar = meses[:indice_mes + 1]
+
+    dataframe['CUMPLIR'] = 0.0
+    for index, row in dataframe.iterrows():
+        if row['TIPO'] == 'CONTINUO':
+            valores_no_nulos = row[meses_evaluar].dropna()
+            if not valores_no_nulos.empty:
+                dataframe.at[index, 'CUMPLIR'] = round(valores_no_nulos.sum(), 2)
+        else:  # Para tipo DISCRETO
+            suma = 0.0
+            for mes in meses_evaluar:
+                if pd.notnull(row[mes]) and pd.notnull(row[f"{mes}_den"]):
+                    suma += row[f"{mes}_den"]
+            dataframe.at[index, 'CUMPLIR'] = round(suma, 2)
+
+    dataframe['CUMPLIR_META'] = 0.0
+    for index, row in dataframe.iterrows():
+        if row['TIPO'] == 'CONTINUO':
+            valores_no_nulos = row[meses_evaluar].dropna()
+            if not valores_no_nulos.empty:
+                dataframe.at[index, 'CUMPLIR_META'] = round(valores_no_nulos.sum() * row['META_ANUAL'], 2)
+        else:  # Para tipo DISCRETO
+            if 'CCDR-01' or 'CCDR-04' or 'CCDR-06' in row['INDICADOR_CORTO'].values:
+                suma = 0.0
+                for mes in meses_evaluar:
+                    if pd.notnull(row[mes]) and pd.notnull(row[f"{mes}_den"]):
+                        suma += row[f"{mes}_den"] * row['META_ANUAL']
+                dataframe.at[index, 'CUMPLIR_META'] = round(suma, 2)
+            else:
+                suma = 0.0
+                for mes in meses_evaluar:
+                    if pd.notnull(row[mes]) and pd.notnull(row[f"{mes}_den"]):
+                        suma += row[mes] * row[f"{mes}_den"]
+                dataframe.at[index, 'CUMPLIR_META'] = round(suma, 2)
+
+    return dataframe
+
+
+def actualizar_planificada(df):
+    # Lista de INDICADOR_CORTO que requieren actualización siempre
+    indicadores_actualizar = ['CCDE-05', 'CCDE-06', 'CCDE-07', 'CCDE-08', 'CCDE-09', 'CCDR-01']
+
+    # Verificar si 'PLANIFICADA' existe en el DataFrame
+    if 'PLANIFICADA' not in df.columns:
+        raise ValueError("La columna 'PLANIFICADA' no está presente en el DataFrame.")
+
+    # Iterar sobre las filas del DataFrame
+    for index, row in df.iterrows():
+        # Verificar si el INDICADOR_CORTO de la fila es uno de los que siempre se deben actualizar
+        if row['INDICADOR_CORTO'] in indicadores_actualizar or pd.isnull(row['PLANIFICADA']):
+            if pd.notnull(row['CUMPLIR']) and pd.notnull(row['META_ANUAL']) and row['META_ANUAL'] != 0:
+                # Calcular el nuevo valor de PLANIFICADA
+                nuevo_valor = row['CUMPLIR']
+                # Actualizar el valor en el DataFrame
+                df.at[index, 'PLANIFICADA'] = nuevo_valor
+    # Crear la columna PLANIFICADA_META como multiplicación de PLANIFICADA por META_ANUAL
+    df['PLANIFICADA_META'] = round(df['PLANIFICADA'] * df['META_ANUAL'], 2)
+
+    return df
 
 
 """REVISIÓN VERIFICABLES A LA FECHA"""
@@ -356,8 +429,10 @@ def informes_acumulados_por_fecha(df, fecha_final):
     # Filtrar los datos para incluir solo hasta la fecha especificada
     df_filtrado = df[df['FECHA DE INFORME'] <= fecha_final]
 
-    # Agrupar por 'INDICADOR_CORTO' y contar las filas por grupo
-    df_resultado = df_filtrado.groupby('INDICADOR_CORTO').size().reset_index(name='CANTIDAD_VERIFICABLES')
+    # Agrupar por 'INDICADOR_CORTO' y contar las filas por grupo y sumar 'Nro. INSPECCIONES'
+    df_resultado = df_filtrado.groupby('INDICADOR_CORTO').agg(CANTIDAD_VERIFICABLES=('INDICADOR_CORTO', 'size'),
+                                                              Nro_INSPECCIONES=(
+                                                                  'Nro INSPECCIONES', 'sum')).reset_index()
     return df_resultado
 
 

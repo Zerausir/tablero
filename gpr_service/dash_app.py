@@ -3,48 +3,22 @@ import pandas as pd
 
 from django_plotly_dash import DjangoDash
 from django.conf import settings
-from datetime import date
+from datetime import date, datetime
 from dash import html, dash_table, dcc
 from dash.dependencies import Input, Output, State
 from dash.exceptions import PreventUpdate
 
-from .services import process_data, verificables, procesar_mes_con_fecha, pact_2024, pac_verificables
-from .utils import calculate_disabled_days_for_year, update_table, download_excel, create_pie_charts, ccde01, ccde02, \
-    ccde03, ccde04, \
-    ccde11, ccdh01, \
-    ccds01, ccds03, ccds05, ccds08, ccds11, ccds12, ccds13, ccds16, ccds17, ccds18, ccds30, ccds31, ccds32, ccdr04
+from .services import process_data, verificables, procesar_mes_con_fecha, actualizar_planificada, pact_2024, \
+    pac_verificables
+from .utils import calculate_disabled_days_for_year, create_pie_charts_for_indicators
 
 # Inicializa df_pact2024 al comienzo de tu script, justo después de importar tus módulos y funciones necesarias
 df_pact2024 = pact_2024()
-# Inicializa estos DataFrames con un valor por defecto (vacío) y actualiza solo con callbacks
-df_final = pd.DataFrame()
-df_verificables = pd.DataFrame()
-df_pact2024_verificables = pd.DataFrame()
 
-# Define un diccionario para los calculadores de porcentaje
-calculators = {
-    'CCDE-01': ccde01,
-    'CCDE-02': ccde02,
-    'CCDE-03': ccde03,
-    'CCDE-04': ccde04,
-    'CCDE-11': ccde11,
-    'CCDH-01': ccdh01,
-    'CCDS-01': ccds01,
-    'CCDS-03': ccds03,
-    'CCDS-05': ccds05,
-    'CCDS-08': ccds08,
-    'CCDS-11': ccds11,
-    'CCDS-12': ccds12,
-    'CCDS-13': ccds13,
-    'CCDS-16': ccds16,
-    'CCDS-17': ccds17,
-    'CCDS-18': ccds18,
-    'CCDS-30': ccds30,
-    'CCDS-31': ccds31,
-    'CCDS-32': ccds32,
-    'CCDR-04': ccdr04
-    # Continúa según sea necesario
-}
+# Inicializa estos DataFrames con un valor por defecto (vacío) y actualiza solo con callbacks
+df_final = None
+df_verificables = None
+df_pact2024_verificables = None
 
 app = DjangoDash(
     name='GprApp',
@@ -100,14 +74,14 @@ app.layout = html.Div(children=[
         ], id='download-container', style={'display': 'none'})
     ], style={'marginBottom': 10}),
 
-    html.Div(id='pie-charts-container', children=create_pie_charts(df_final, calculators)),
-
-    # Este contenedor se llenará con la tabla correspondiente al gráfico de pie seleccionado
-    html.Div(id='verificables-details-container', style={'display': 'none'}),
-
     # Stores for keeping the dataframes in the client side for downloading
     dcc.Store(id='stored-df-final'),
     dcc.Store(id='stored-df-pact2024-verificables'),
+    dcc.Store(id='stored-df-final-filtered', data={}),
+    dcc.Store(id='stored-df-pact2024-verificables-filtered', data={}),
+
+    # Container for Pie Charts
+    html.Div(id='pie-chart-container', style={'marginBottom': 10})
 ])
 
 
@@ -116,7 +90,9 @@ app.layout = html.Div(children=[
         Output('datatable-container1', 'children'),
         Output('datatable-container', 'children'),
         Output('stored-df-final', 'data'),
-        Output('stored-df-pact2024-verificables', 'data')
+        Output('stored-df-pact2024-verificables', 'data'),
+        Output('stored-df-final-filtered', 'data'),
+        Output('stored-df-pact2024-verificables-filtered', 'data')
     ],
     [
         Input('fecha-seleccionada', 'date'),
@@ -126,27 +102,31 @@ app.layout = html.Div(children=[
 def update_data_on_date_and_indicator_selection(selected_date, selected_indicators):
     global df_final, df_verificables, df_pact2024_verificables
 
-    # Verifica si realmente hay un cambio en la fecha para procesar los datos
     if selected_date:
         df_final = process_data(selected_date)
         df_verificables = verificables(df_final, selected_date)
-        df_pact2024_actualizado = procesar_mes_con_fecha(df_pact2024, selected_date)
+        df_pact2024_actualizado = actualizar_planificada(procesar_mes_con_fecha(df_pact2024, selected_date))
         df_pact2024_verificables = pac_verificables(df_pact2024_actualizado, df_verificables)
 
-    # Filtra los DataFrames según los indicadores seleccionados
     if selected_indicators:
-        df_pact2024_verificables = df_pact2024_verificables[
+        df_pact2024_verificables_filtered = df_pact2024_verificables[
             df_pact2024_verificables['INDICADOR_CORTO'].isin(selected_indicators)]
         df_final_filtered = df_final[df_final['INDICADOR_CORTO'].isin(selected_indicators)]
     else:
+        df_pact2024_verificables_filtered = df_pact2024_verificables
         df_final_filtered = df_final
 
-    # Crea las DataTables para mostrar los DataFrames filtrados
-    table1 = create_data_table(df_pact2024_verificables)
+    table1 = create_data_table(df_pact2024_verificables_filtered)
     table2 = create_data_table(df_final_filtered)
 
-    return [table1, table2, df_final.to_json(date_format='iso', orient='split'),
-            df_pact2024_verificables.to_json(date_format='iso', orient='split')]
+    return [
+        table1,
+        table2,
+        df_final.to_json(date_format='iso', orient='split'),
+        df_pact2024_verificables.to_json(date_format='iso', orient='split'),
+        df_final_filtered.to_json(date_format='iso', orient='split'),
+        df_pact2024_verificables_filtered.to_json(date_format='iso', orient='split')
+    ]
 
 
 def create_data_table(dataframe):
@@ -203,75 +183,79 @@ def toggle_datatable_visibility(n_clicks):
         return {'display': 'block'}, {'display': 'block'}
 
 
-@app.callback(
-    Output('pie-charts-container', 'children'),
-    [
-        Input('fecha-seleccionada', 'date'),
-        Input('filter-indicador', 'value')
-    ]
-)
-def update_pie_charts(selected_date, selected_indicators):
-    # Recargar los datos basados en la fecha seleccionada
-    df_final = process_data(selected_date)
-
-    # Filtrar los datos si se han seleccionado indicadores
-    if selected_indicators:
-        df_filtered = df_final[df_final['INDICADOR_CORTO'].isin(selected_indicators)]
-    else:
-        df_filtered = df_final
-
-    # Pasar los datos filtrados a create_pie_charts
-    return create_pie_charts(df_filtered, calculators, selected_indicators)
-
-
-# Callback para actualizar la DataTable basado en los filtros seleccionados
-@app.callback(
-    Output('table1', 'data'),
-    [Input('filter-indicador', 'value')]
-)
-def update_table1(selected_indicador):
-    return update_table(df_final, selected_indicador, 'table1')
-
-
-@app.callback(
-    Output('table2', 'data'),
-    [Input('filter-indicador', 'value')]
-)
-def update_table2(selected_indicador):
-    return update_table(df_pact2024_verificables, selected_indicador, 'table2')
-
-
 # Callback para la descarga del Excel
 @app.callback(
     Output("download-excel", "data"),
     [Input("btn_excel", "n_clicks")],
-    [State('stored-df-final', 'data')],  # Use the stored DataFrame data
+    [State('stored-df-final-filtered', 'data'),
+     State('fecha-seleccionada', 'date')],  # Use the stored filtered DataFrame data
     prevent_initial_call=True
 )
-def download_excel_callback(n_clicks, json_data):
+def download_excel_callback(n_clicks, json_data, selected_date):
     if n_clicks is None:
         raise PreventUpdate
     if json_data is not None:
         # Wrap the JSON string in a StringIO object before reading
         buffer = io.StringIO(json_data)
         df = pd.read_json(buffer, orient='split')
-        return dcc.send_data_frame(df.to_excel, filename="datos_descargados.xlsx", index=False)
+
+        # Formatear la fecha de corte para incluirla en el nombre del archivo
+        formatted_date = datetime.strptime(selected_date, "%Y-%m-%d").strftime(
+            "%Y%m%d") if selected_date else "sin_fecha"
+        filename = f"CZO2_corte_{formatted_date}.xlsx"
+
+        return dcc.send_data_frame(df.to_excel, filename=filename, index=False)
 
 
+# Callback para la descarga del Excel para PACT2024
 @app.callback(
     Output("download-excel1", "data"),
     [Input("btn_excel1", "n_clicks")],
-    [State('stored-df-pact2024-verificables', 'data')],  # Use the stored DataFrame data
+    [State('stored-df-pact2024-verificables-filtered', 'data'),
+     State('fecha-seleccionada', 'date')],  # Utiliza la fecha de corte como estado
     prevent_initial_call=True
 )
-def download_excel_callback1(n_clicks, json_data):
+def download_excel_callback1(n_clicks, json_data, selected_date):
     if n_clicks is None:
         raise PreventUpdate
     if json_data is not None:
         # Wrap the JSON string in a StringIO object before reading
         buffer = io.StringIO(json_data)
         df = pd.read_json(buffer, orient='split')
-        return dcc.send_data_frame(df.to_excel, filename="datos_descargados.xlsx", index=False)
+
+        # Formatear la fecha de corte para incluirla en el nombre del archivo
+        formatted_date = datetime.strptime(selected_date, "%Y-%m-%d").strftime(
+            "%Y%m%d") if selected_date else "sin_fecha"
+        filename = f"PACT2024_corte_{formatted_date}.xlsx"
+
+        return dcc.send_data_frame(df.to_excel, filename=filename, index=False)
+
+
+@app.callback(
+    Output('pie-chart-container', 'children'),
+    [Input('stored-df-pact2024-verificables-filtered', 'data')]
+)
+def update_pie_charts(json_data):
+    if json_data is None:
+        return []
+
+    buffer = io.StringIO(json_data)
+    df = pd.read_json(buffer, orient='split')
+    pie_charts = create_pie_charts_for_indicators(df)
+
+    children = []
+    row_children = []
+    # Organizar los gráficos de torta en filas de dos columnas
+    for i, (indicador, (pie_global, pie_corte)) in enumerate(pie_charts.items()):
+        row_children.append(html.Div(dcc.Graph(figure=pie_global), style={'width': '50%', 'display': 'inline-block'}))
+        row_children.append(html.Div(dcc.Graph(figure=pie_corte), style={'width': '50%', 'display': 'inline-block'}))
+        if i % 2 == 1:  # Cada dos gráficos, comenzar una nueva fila
+            children.append(html.Div(row_children, style={'display': 'flex', 'flex-wrap': 'wrap'}))
+            row_children = []
+    if row_children:  # Añadir cualquier fila que tenga menos de dos gráficos
+        children.append(html.Div(row_children, style={'display': 'flex', 'flex-wrap': 'wrap'}))
+
+    return children
 
 
 if __name__ == '__main__':

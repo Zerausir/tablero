@@ -1,10 +1,9 @@
-import pandas as pd
-import plotly.graph_objects as go
-from dash import dcc, html
-from dash.exceptions import PreventUpdate
 from datetime import date, timedelta
+from functools import lru_cache
+import plotly.graph_objects as go
 
 
+@lru_cache(maxsize=1)
 def calculate_disabled_days_for_year(year):
     # Calcula el último día de cada mes en el año especificado
     def last_day_of_month(year, month):
@@ -34,130 +33,86 @@ def update_table(dataframe, selected_indicador, table_id):
     return filtered_df.to_dict('records')
 
 
-def download_excel(n_clicks, dataframe):
-    if n_clicks is None:
-        raise PreventUpdate
-    # Ensure that dataframe is a DataFrame
-    if isinstance(dataframe, pd.DataFrame):
-        return dcc.send_data_frame(dataframe.to_excel, filename="datos_descargados.xlsx", index=False)
-    else:
-        raise ValueError("The provided data for download is not a pandas DataFrame.")
+def wrap_text(text, width=110):
+    """ Inserta saltos de línea en el texto para que se ajuste al ancho dado. """
+    words = text.split()
+    lines = []
+    current_line = []
+
+    for word in words:
+        # Verifica si añadiendo la palabra actual se supera el ancho máximo
+        if sum(len(word) for word in current_line) + len(word) + len(current_line) > width:
+            lines.append(" ".join(current_line))
+            current_line = [word]
+        else:
+            current_line.append(word)
+
+    if current_line:
+        lines.append(" ".join(current_line))
+
+    return "<br>".join(lines)  # Usa <br> para saltos de línea en anotaciones de Plotly
 
 
-def create_pie_charts(df, calculators, selected_indicadores=None):
-    pie_charts = []
-    for indicador in (selected_indicadores or calculators.keys()):
-        nro_informes = df[df['INDICADOR_CORTO'] == indicador].shape[0] if 'INDICADOR_CORTO' in df.columns else 0
-        porcentaje = calculators[indicador](nro_informes) if calculators.get(indicador) else 0
-        fig = go.Figure(data=[
-            go.Pie(
-                labels=['Avance', 'Restante'],
-                values=[porcentaje, 100 - porcentaje],
-                hole=.3,
-                marker=dict(colors=['#007BFF', '#D62828']),
-            )
-        ])
-        fig.update_layout(
-            title_text=f"Avance indicador {indicador} ({nro_informes} informes)",
+def create_pie_charts_for_indicators(df):
+    pie_charts = {}
+    for indicador in df['INDICADOR_CORTO'].unique():
+        data_indicador = df[df['INDICADOR_CORTO'] == indicador]
+        tipo = data_indicador['TIPO'].iloc[0]  # Asume que todos los registros para un indicador comparten el mismo tipo
+        indicador_full = data_indicador['INDICADOR'].iloc[0]
+        indicador_full_wrapped = wrap_text(indicador_full)  # Envuelve el texto
+
+        if tipo == 'CONTINUO':
+            planificada = data_indicador['PLANIFICADA_META'].sum()
+            cumplir = data_indicador['CUMPLIR_META'].sum()
+        else: #'DISCRETO'
+            planificada = data_indicador['PLANIFICADA_META'].sum()
+            cumplir = data_indicador['CUMPLIR_META'].sum()
+
+        if tipo == 'CONTINUO':
+            # Manejo común para todos los CONTINUO, excepto CCDS-13 y CCDR-06
+            if 'CCDS-13' in data_indicador['INDICADOR_CORTO'].values:
+                cantidad_verificables = data_indicador[
+                    'Nro_INSPECCIONES'].sum() if 'Nro_INSPECCIONES' in data_indicador else 0
+            elif 'CCDR-06' in data_indicador['INDICADOR_CORTO'].values:
+                cantidad_verificables = data_indicador[
+                    'Nro_INSPECCIONES'].sum() if 'Nro_INSPECCIONES' in data_indicador else 0
+            else:
+                cantidad_verificables = data_indicador[
+                    'CANTIDAD_VERIFICABLES'].sum() if 'CANTIDAD_VERIFICABLES' in data_indicador else 0
+        else: #'DISCRETO'
+            cantidad_verificables = data_indicador[
+                'CANTIDAD_VERIFICABLES'].sum() if 'CANTIDAD_VERIFICABLES' in data_indicador else 0
+
+        avance_global = min(cantidad_verificables / planificada * 100 if planificada > 0 else 0, 100)
+        restante_global = max(100 - avance_global, 0)
+
+        avance_corte = min(cantidad_verificables / cumplir * 100 if cumplir > 0 else 0, 100)
+        restante_corte = max(100 - avance_corte, 0)
+
+        pie_global = go.Figure(data=[
+            go.Pie(labels=["Avance", "Restante"], values=[avance_global, restante_global],
+                   marker=dict(colors=['#007BFF', '#D62828']), hole=.3)])
+        pie_global.update_layout(
+            title_text=f"Global: {indicador} ({cantidad_verificables} realizados / {planificada} planificados)",
             title_x=0.5,
-            legend=dict(traceorder='normal', orientation="h", x=0.5, xanchor="center"),
-            margin=dict(l=20, r=20, t=45, b=20),  # Establece márgenes internos
-            uniformtext_minsize=12,
-            uniformtext_mode='hide'
+            legend=dict(traceorder='normal'),
+            annotations=[dict(text=indicador_full_wrapped, x=0.5, y=-0.15, xref="paper", yref="paper", showarrow=False,
+                              font=dict(size=10, color="black"), bordercolor='black', borderpad=4, bgcolor='white',
+                              borderwidth=1)]
         )
 
-        pie_chart_div = html.Div([
-            dcc.Graph(
-                figure=fig,
-                id={
-                    'type': 'dynamic-pie-chart',
-                    'index': indicador
-                },
-            ),
-            html.Div(id={'type': 'details', 'index': indicador}, className='verifiable-details')
-            # Div para los detalles
-        ], className='six columns')
+        pie_corte = go.Figure(data=[
+            go.Pie(labels=["Avance", "Restante"], values=[avance_corte, restante_corte],
+                   marker=dict(colors=['#007BFF', '#D62828']), hole=.3)])
+        pie_corte.update_layout(
+            title_text=f"Fecha de Corte: {indicador} ({cantidad_verificables} realizados / {cumplir} a cumplir al corte)",
+            title_x=0.5,
+            legend=dict(traceorder='normal'),
+            annotations=[dict(text=indicador_full_wrapped, x=0.5, y=-0.15, xref="paper", yref="paper", showarrow=False,
+                              font=dict(size=10, color="black"), bordercolor='black', borderpad=4, bgcolor='white',
+                              borderwidth=1)]
+        )
 
-        pie_charts.append(pie_chart_div)
+        pie_charts[indicador] = (pie_global, pie_corte)
 
-    return html.Div(pie_charts, className='row')
-
-
-def ccde01(nro_informes):
-    return min((nro_informes / 60) * 100, 100) if nro_informes else 0
-
-
-def ccde02(nro_informes):
-    return min((nro_informes / 2) * 100, 100) if nro_informes else 0
-
-
-def ccde03(nro_informes):
-    return min((nro_informes / 6) * 100, 100) if nro_informes else 0
-
-
-def ccde04(nro_informes):
-    return min((nro_informes / 140) * 100, 100) if nro_informes else 0
-
-
-def ccde11(nro_informes):
-    return min((nro_informes / 2) * 100, 100) if nro_informes else 0
-
-
-def ccdh01(nro_informes):
-    return min((nro_informes / 12) * 100, 100) if nro_informes else 0
-
-
-def ccds01(nro_informes):
-    return min((nro_informes / 51) * 100, 100) if nro_informes else 0
-
-
-def ccds03(nro_informes):
-    return min((nro_informes / 2) * 100, 100) if nro_informes else 0
-
-
-def ccds05(nro_informes):
-    return min((nro_informes / 2) * 100, 100) if nro_informes else 0
-
-
-def ccds08(nro_informes):
-    return min((nro_informes / 3) * 100, 100) if nro_informes else 0
-
-
-def ccds11(nro_informes):
-    return min((nro_informes / 4) * 100, 100) if nro_informes else 0
-
-
-def ccds12(nro_informes):
-    return min((nro_informes / 1) * 100, 100) if nro_informes else 0
-
-
-def ccds13(nro_informes):
-    return min((nro_informes / 10) * 100, 100) if nro_informes else 0
-
-
-def ccds16(nro_informes):
-    return min((nro_informes / 15) * 100, 100) if nro_informes else 0
-
-
-def ccds17(nro_informes):
-    return min((nro_informes / 37) * 100, 100) if nro_informes else 0
-
-
-def ccds18(nro_informes):
-    return min((nro_informes / 8) * 100, 100) if nro_informes else 0
-
-
-def ccds30(nro_informes):
-    return min((nro_informes / 7) * 100, 100) if nro_informes else 0
-
-
-def ccds31(nro_informes):
-    return min((nro_informes / 1) * 100, 100) if nro_informes else 0
-
-
-def ccds32(nro_informes):
-    return min((nro_informes / 12) * 100, 100) if nro_informes else 0
-
-
-def ccdr04(nro_informes):
-    return min((nro_informes / 23) * 100, 100) if nro_informes else 0
+    return pie_charts
