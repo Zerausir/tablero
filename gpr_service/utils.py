@@ -53,7 +53,7 @@ def wrap_text(text, width=110):
     return "<br>".join(lines)  # Usa <br> para saltos de línea en anotaciones de Plotly
 
 
-def create_pie_charts_for_indicators(df):
+def create_pie_charts_for_indicators(df, selected_date):
     pie_charts = {}
     for indicador in df['INDICADOR_CORTO'].unique():
         data_indicador = df[df['INDICADOR_CORTO'] == indicador]
@@ -64,7 +64,7 @@ def create_pie_charts_for_indicators(df):
         if tipo == 'CONTINUO':
             planificada = data_indicador['PLANIFICADA_META'].sum()
             cumplir = data_indicador['CUMPLIR_META'].sum()
-        else: #'DISCRETO'
+        else:  # 'DISCRETO'
             planificada = data_indicador['PLANIFICADA_META'].sum()
             cumplir = data_indicador['CUMPLIR_META'].sum()
 
@@ -79,7 +79,7 @@ def create_pie_charts_for_indicators(df):
             else:
                 cantidad_verificables = data_indicador[
                     'CANTIDAD_VERIFICABLES'].sum() if 'CANTIDAD_VERIFICABLES' in data_indicador else 0
-        else: #'DISCRETO'
+        else:  # 'DISCRETO'
             cantidad_verificables = data_indicador[
                 'CANTIDAD_VERIFICABLES'].sum() if 'CANTIDAD_VERIFICABLES' in data_indicador else 0
 
@@ -105,7 +105,7 @@ def create_pie_charts_for_indicators(df):
             go.Pie(labels=["Avance", "Restante"], values=[avance_corte, restante_corte],
                    marker=dict(colors=['#007BFF', '#D62828']), hole=.3)])
         pie_corte.update_layout(
-            title_text=f"Fecha de Corte: {indicador} ({cantidad_verificables} realizados / {cumplir} a cumplir al corte)",
+            title_text=f"Al {selected_date}: {indicador} ({cantidad_verificables} realizados / {cumplir} a cumplir al corte)",
             title_x=0.5,
             legend=dict(traceorder='normal'),
             annotations=[dict(text=indicador_full_wrapped, x=0.5, y=-0.15, xref="paper", yref="paper", showarrow=False,
@@ -114,5 +114,47 @@ def create_pie_charts_for_indicators(df):
         )
 
         pie_charts[indicador] = (pie_global, pie_corte)
+
+    return pie_charts
+
+
+def create_summary_pie_charts(df, selected_date):
+    pie_charts = {}
+
+    df_filtered = df[df['CUMPLIR_META'] != 0]
+
+    if not df_filtered.empty:
+        # Para Global Planificado
+        df_filtered = df_filtered.copy()
+        df_filtered.loc[:, 'Porcentaje_Global'] = df_filtered.apply(
+            lambda row: min(row['CANTIDAD_VERIFICABLES'] / row['PLANIFICADA_META'], 1), axis=1)
+        porcentaje_global_total = df_filtered['Porcentaje_Global'].sum() / len(df_filtered) * 100
+        restante_global = max(100 - porcentaje_global_total, 0)
+
+        pie_chart_global = go.Figure(data=[
+            go.Pie(labels=["Avance", "Restante"], values=[porcentaje_global_total, restante_global],
+                   marker=dict(colors=['#007BFF', '#D62828']), hole=.3)])
+        pie_chart_global.update_layout(
+            title_text="Global: 3.1 Porcentaje de Cumplimiento PACT",
+            title_x=0.5,
+            legend=dict(traceorder='normal')
+        )
+        pie_charts['Global Planificado'] = pie_chart_global
+
+        # Para Fecha de Corte
+        df_filtered.loc[:, 'Porcentaje_Corte'] = df_filtered.apply(
+            lambda row: min(row['CANTIDAD_VERIFICABLES'] / row['CUMPLIR_META'], 1), axis=1)
+        porcentaje_corte_total = df_filtered['Porcentaje_Corte'].sum() / len(df_filtered) * 100
+        restante_corte = max(100 - porcentaje_corte_total, 0)
+
+        pie_chart_corte = go.Figure(data=[
+            go.Pie(labels=["Avance", "Restante"], values=[porcentaje_corte_total, restante_corte],
+                   marker=dict(colors=['#007BFF', '#D62828']), hole=.3)])
+        pie_chart_corte.update_layout(
+            title_text=f"Al {selected_date}: 3.1 Porcentaje de Cumplimiento PACT ",
+            title_x=0.5,
+            legend=dict(traceorder='normal')
+        )
+        pie_charts['Fecha de Corte'] = pie_chart_corte
 
     return pie_charts

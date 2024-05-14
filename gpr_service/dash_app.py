@@ -10,7 +10,7 @@ from dash.exceptions import PreventUpdate
 
 from .services import process_data, verificables, procesar_mes_con_fecha, actualizar_planificada, pact_2024, \
     pac_verificables
-from .utils import calculate_disabled_days_for_year, create_pie_charts_for_indicators
+from .utils import calculate_disabled_days_for_year, create_pie_charts_for_indicators, create_summary_pie_charts
 
 # Inicializa df_pact2024 al comienzo de tu script, justo después de importar tus módulos y funciones necesarias
 df_pact2024 = pact_2024()
@@ -49,12 +49,17 @@ app.layout = html.Div(children=[
             multi=True,
             placeholder='Seleccionar indicadores',
         ),
-    ], style={'marginBottom': 10}),
+    ], id='filter-indicador-container', style={'display': 'none', 'marginBottom': 10}),
 
     # Botones para mostrar/ocultar datos
     html.Div([
         html.Button("Mostrar/Ocultar Datos PACT2024", id="toggle-data-btn1", n_clicks=0),
         html.Button("Mostrar/Ocultar Datos CZO2", id="toggle-data-btn", n_clicks=0),
+    ], style={'marginBottom': 10}),
+
+    # Botones para mostrar/ocultar detalles del indicador
+    html.Div([
+        html.Button("Detalle del indicador", id="toggle-detail-btn", n_clicks=0),
     ], style={'marginBottom': 10}),
 
     # Contenedores para DataTables
@@ -183,6 +188,18 @@ def toggle_datatable_visibility(n_clicks):
         return {'display': 'block'}, {'display': 'block'}
 
 
+@app.callback(
+    Output('filter-indicador-container', 'style'),
+    Input('toggle-detail-btn', 'n_clicks'),
+    State('filter-indicador-container', 'style')
+)
+def toggle_filter_visibility(n_clicks, current_style):
+    if n_clicks % 2 == 0:
+        return {'display': 'none', 'marginBottom': 10}
+    else:
+        return {'display': 'block', 'marginBottom': 10}
+
+
 # Callback para la descarga del Excel
 @app.callback(
     Output("download-excel", "data"),
@@ -233,29 +250,42 @@ def download_excel_callback1(n_clicks, json_data, selected_date):
 
 @app.callback(
     Output('pie-chart-container', 'children'),
-    [Input('stored-df-pact2024-verificables-filtered', 'data')]
+    [Input('stored-df-pact2024-verificables-filtered', 'data'),
+     Input('toggle-detail-btn', 'n_clicks')],
+    [State('fecha-seleccionada', 'date')]
 )
-def update_pie_charts(json_data):
+def update_pie_charts(json_data, n_clicks, selected_date):
     if json_data is None:
         return []
 
     buffer = io.StringIO(json_data)
     df = pd.read_json(buffer, orient='split')
-    pie_charts = create_pie_charts_for_indicators(df)
 
-    children = []
-    row_children = []
-    # Organizar los gráficos de torta en filas de dos columnas
-    for i, (indicador, (pie_global, pie_corte)) in enumerate(pie_charts.items()):
-        row_children.append(html.Div(dcc.Graph(figure=pie_global), style={'width': '50%', 'display': 'inline-block'}))
-        row_children.append(html.Div(dcc.Graph(figure=pie_corte), style={'width': '50%', 'display': 'inline-block'}))
-        if i % 2 == 1:  # Cada dos gráficos, comenzar una nueva fila
+    if n_clicks % 2 == 0:
+        pie_charts = create_summary_pie_charts(df, selected_date)
+        summary_charts = [
+            html.Div(dcc.Graph(figure=pie_charts['Global Planificado']),
+                     style={'width': '50%', 'display': 'inline-block'}),
+            html.Div(dcc.Graph(figure=pie_charts['Fecha de Corte']), style={'width': '50%', 'display': 'inline-block'})
+        ]
+        return summary_charts
+    else:
+        pie_charts = create_pie_charts_for_indicators(df, selected_date)
+        children = []
+        row_children = []
+        # Organizar los gráficos de torta en filas de dos columnas
+        for i, (indicador, (pie_global, pie_corte)) in enumerate(pie_charts.items()):
+            row_children.append(
+                html.Div(dcc.Graph(figure=pie_global), style={'width': '50%', 'display': 'inline-block'}))
+            row_children.append(
+                html.Div(dcc.Graph(figure=pie_corte), style={'width': '50%', 'display': 'inline-block'}))
+            if i % 2 == 1:  # Cada dos gráficos, comenzar una nueva fila
+                children.append(html.Div(row_children, style={'display': 'flex', 'flex-wrap': 'wrap'}))
+                row_children = []
+        if row_children:  # Añadir cualquier fila que tenga menos de dos gráficos
             children.append(html.Div(row_children, style={'display': 'flex', 'flex-wrap': 'wrap'}))
-            row_children = []
-    if row_children:  # Añadir cualquier fila que tenga menos de dos gráficos
-        children.append(html.Div(row_children, style={'display': 'flex', 'flex-wrap': 'wrap'}))
 
-    return children
+        return children
 
 
 if __name__ == '__main__':

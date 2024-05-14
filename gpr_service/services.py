@@ -1,9 +1,13 @@
+import warnings
 from django.conf import settings
 import pandas as pd
 import os
 import shutil
 import datetime
 from functools import lru_cache
+
+# Supresión de advertencias específicas de openpyxl
+warnings.simplefilter(action='ignore', category=UserWarning)
 
 
 def load_environment_variables():
@@ -351,33 +355,33 @@ def procesar_mes_con_fecha(dataframe, fecha_str):
         if row['TIPO'] == 'CONTINUO':
             valores_no_nulos = row[meses_evaluar].dropna()
             if not valores_no_nulos.empty:
-                dataframe.at[index, 'CUMPLIR'] = round(valores_no_nulos.sum(), 2)
+                dataframe.at[index, 'CUMPLIR'] = valores_no_nulos.sum()
         else:  # Para tipo DISCRETO
             suma = 0.0
             for mes in meses_evaluar:
                 if pd.notnull(row[mes]) and pd.notnull(row[f"{mes}_den"]):
                     suma += row[f"{mes}_den"]
-            dataframe.at[index, 'CUMPLIR'] = round(suma, 2)
+            dataframe.at[index, 'CUMPLIR'] = suma
 
     dataframe['CUMPLIR_META'] = 0.0
     for index, row in dataframe.iterrows():
         if row['TIPO'] == 'CONTINUO':
             valores_no_nulos = row[meses_evaluar].dropna()
             if not valores_no_nulos.empty:
-                dataframe.at[index, 'CUMPLIR_META'] = round(valores_no_nulos.sum() * row['META_ANUAL'], 2)
+                dataframe.at[index, 'CUMPLIR_META'] = valores_no_nulos.sum() * row['META_ANUAL']
         else:  # Para tipo DISCRETO
             if 'CCDR-01' or 'CCDR-04' or 'CCDR-06' in row['INDICADOR_CORTO'].values:
                 suma = 0.0
                 for mes in meses_evaluar:
                     if pd.notnull(row[mes]) and pd.notnull(row[f"{mes}_den"]):
                         suma += row[f"{mes}_den"] * row['META_ANUAL']
-                dataframe.at[index, 'CUMPLIR_META'] = round(suma, 2)
+                dataframe.at[index, 'CUMPLIR_META'] = suma
             else:
                 suma = 0.0
                 for mes in meses_evaluar:
                     if pd.notnull(row[mes]) and pd.notnull(row[f"{mes}_den"]):
                         suma += row[mes] * row[f"{mes}_den"]
-                dataframe.at[index, 'CUMPLIR_META'] = round(suma, 2)
+                dataframe.at[index, 'CUMPLIR_META'] = suma
 
     return dataframe
 
@@ -400,7 +404,7 @@ def actualizar_planificada(df):
                 # Actualizar el valor en el DataFrame
                 df.at[index, 'PLANIFICADA'] = nuevo_valor
     # Crear la columna PLANIFICADA_META como multiplicación de PLANIFICADA por META_ANUAL
-    df['PLANIFICADA_META'] = round(df['PLANIFICADA'] * df['META_ANUAL'], 2)
+    df['PLANIFICADA_META'] = df['PLANIFICADA'] * df['META_ANUAL']
 
     return df
 
@@ -445,4 +449,4 @@ def verificables(data, fecha_str='2024-01-31'):
 
 def pac_verificables(df1, df2):
     resultado = pd.merge(df1, df2, how='outer', on='INDICADOR_CORTO')
-    return resultado
+    return resultado.round(2)
