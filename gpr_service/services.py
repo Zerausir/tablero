@@ -350,38 +350,29 @@ def procesar_mes_con_fecha(dataframe, fecha_str):
     indice_mes = fecha.month - 1
     meses_evaluar = meses[:indice_mes + 1]
 
-    dataframe['CUMPLIR'] = 0.0
-    for index, row in dataframe.iterrows():
+    def calcular_cumplir(row):
         if row['TIPO'] == 'CONTINUO':
             valores_no_nulos = row[meses_evaluar].dropna()
-            if not valores_no_nulos.empty:
-                dataframe.at[index, 'CUMPLIR'] = valores_no_nulos.sum()
+            return valores_no_nulos.sum() if not valores_no_nulos.empty else 0.0
         else:  # Para tipo DISCRETO
-            suma = 0.0
-            for mes in meses_evaluar:
-                if pd.notnull(row[mes]) and pd.notnull(row[f"{mes}_den"]):
-                    suma += row[f"{mes}_den"]
-            dataframe.at[index, 'CUMPLIR'] = suma
+            return sum(
+                row[f"{mes}_den"] for mes in meses_evaluar if pd.notnull(row[mes]) and pd.notnull(row[f"{mes}_den"]))
 
-    dataframe['CUMPLIR_META'] = 0.0
-    for index, row in dataframe.iterrows():
+    dataframe['CUMPLIR'] = dataframe.apply(calcular_cumplir, axis=1)
+
+    def calcular_cumplir_meta(row):
         if row['TIPO'] == 'CONTINUO':
             valores_no_nulos = row[meses_evaluar].dropna()
-            if not valores_no_nulos.empty:
-                dataframe.at[index, 'CUMPLIR_META'] = valores_no_nulos.sum() * row['META_ANUAL']
+            return valores_no_nulos.sum() * row['META_ANUAL'] if not valores_no_nulos.empty else 0.0
         else:  # Para tipo DISCRETO
-            if 'CCDR-01' or 'CCDR-04' or 'CCDR-06' in row['INDICADOR_CORTO'].values:
-                suma = 0.0
-                for mes in meses_evaluar:
-                    if pd.notnull(row[mes]) and pd.notnull(row[f"{mes}_den"]):
-                        suma += row[f"{mes}_den"] * row['META_ANUAL']
-                dataframe.at[index, 'CUMPLIR_META'] = suma
+            if row['INDICADOR_CORTO'] in ['CCDR-01', 'CCDR-04', 'CCDR-06']:
+                return sum(row[f"{mes}_den"] * row['META_ANUAL'] for mes in meses_evaluar if
+                           pd.notnull(row[mes]) and pd.notnull(row[f"{mes}_den"]))
             else:
-                suma = 0.0
-                for mes in meses_evaluar:
-                    if pd.notnull(row[mes]) and pd.notnull(row[f"{mes}_den"]):
-                        suma += row[mes] * row[f"{mes}_den"]
-                dataframe.at[index, 'CUMPLIR_META'] = suma
+                return sum(row[mes] * row[f"{mes}_den"] for mes in meses_evaluar if
+                           pd.notnull(row[mes]) and pd.notnull(row[f"{mes}_den"]))
+
+    dataframe['CUMPLIR_META'] = dataframe.apply(calcular_cumplir_meta, axis=1)
 
     return dataframe
 

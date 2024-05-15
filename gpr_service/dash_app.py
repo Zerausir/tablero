@@ -12,14 +12,6 @@ from .services import process_data, verificables, procesar_mes_con_fecha, actual
     pac_verificables
 from .utils import calculate_disabled_days_for_year, create_pie_charts_for_indicators, create_summary_pie_charts
 
-# Inicializa df_pact2024 al comienzo de tu script, justo después de importar tus módulos y funciones necesarias
-df_pact2024 = pact_2024()
-
-# Inicializa estos DataFrames con un valor por defecto (vacío) y actualiza solo con callbacks
-df_final = None
-df_verificables = None
-df_pact2024_verificables = None
-
 app = DjangoDash(
     name='GprApp',
     add_bootstrap_links=True,
@@ -86,7 +78,14 @@ app.layout = html.Div(children=[
     dcc.Store(id='stored-df-pact2024-verificables-filtered', data={}),
 
     # Container for Pie Charts
-    html.Div(id='pie-chart-container', style={'marginBottom': 10})
+    html.Div(id='pie-chart-container', style={'marginBottom': 10}),
+
+    # Interval component for periodic updates
+    dcc.Interval(
+        id='interval-component',
+        interval=30 * 1000,  # in milliseconds (e.g., 20*1000 = 20 seconds)
+        n_intervals=0
+    )
 ])
 
 
@@ -101,11 +100,12 @@ app.layout = html.Div(children=[
     ],
     [
         Input('fecha-seleccionada', 'date'),
-        Input('filter-indicador', 'value')
+        Input('filter-indicador', 'value'),
+        Input('interval-component', 'n_intervals')
     ]
 )
-def update_data_on_date_and_indicator_selection(selected_date, selected_indicators):
-    global df_final, df_verificables, df_pact2024_verificables
+def update_data_on_date_and_indicator_selection(selected_date, selected_indicators, n_intervals):
+    df_pact2024 = pact_2024()
 
     if selected_date:
         df_final = process_data(selected_date)
