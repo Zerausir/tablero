@@ -25,5 +25,6 @@ urlpatterns = [
     path('api/v1/index_service/', include(api_urls)),
     path('', include('general_report_service.urls')),
     path('', include('gpr_service.urls')),
+    path('', include('band_occupation_service.urls')),
     path('django_plotly_dash/', include('django_plotly_dash.urls')),
 ]

@@ -49,6 +49,7 @@ INSTALLED_APPS = [
     'index_service.apps.IndexServiceConfig',
     'general_report_service.apps.GeneralReportServiceConfig',
     'gpr_service.apps.GprServiceConfig',
+    'band_occupation_service.apps.BandOccupationServiceConfig',
 ]
 
 MIDDLEWARE = [

@@ -1,0 +1,21 @@
+{% load static %}  <!-- Load the static files tag -->
+{% load plotly_dash %}  <!-- Load the Plotly Dash tag -->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, shrink-to-fit=no">
+    <title>Ocupación de Bandas</title>
+    <!-- Link to CSS static files if any -->
+    <link rel="stylesheet" href="{% static 'css/outer.css' %}">
+    <!-- You can add additional CSS links here -->
+</head>
+<body>
+    <div id="dashboard-container">
+        <h1>Resultados Ocupación de Bandas</h1>
+        <!-- Embed your DjangoDash app -->
+        {% plotly_app_bootstrap name="BandOccupationApp" %}
+    </div>
+</body>
+</html>
