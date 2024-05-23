@@ -191,21 +191,29 @@ REST_FRAMEWORK = {
 
 X_FRAME_OPTIONS = 'SAMEORIGIN'
 
-# Increase the maximum upload size to 10 MB
-DATA_UPLOAD_MAX_MEMORY_SIZE = 10485760  # 10 MB in bytes
+# Increase the maximum upload size to 100 MB
+DATA_UPLOAD_MAX_MEMORY_SIZE = 104857600  # 100 MB in bytes
 
 # settings.py
 
 # Define environment variables
+DBNAME = env("DBNAME")
+USER = env("USER")
+PASSWORD = env("PASSWORD")
+HOST = env("HOST")
+PORT = env("PORT")
+
 OPTIONS = env("OPTIONS", "[]")
 CITIES = env("CITIES", "[]")
 SERVER_ROUTE = env("SERVER_ROUTE")
+SERVER_ROUTE_BANDAS = env("SERVER_ROUTE_BANDAS")
 DOWNLOAD_ROUTE = env("DOWNLOAD_ROUTE")
 FILE_AUT_SUS = env("FILE_AUT_SUS")
 FILE_AUT_BP = env("FILE_AUT_BP")
 FILE_ESTACIONES = env("FILE_ESTACIONES")
 
 CITIES1 = config("CITIES1", default={}, cast=lambda v: json.loads(v))
+CITIES2 = config("CITIES2", default={}, cast=lambda v: json.loads(v))
 MONTH_TRANSLATIONS = config("MONTH_TRANSLATIONS", default={}, cast=lambda v: json.loads(v))
 
 COLUMNS_FM = json.loads(env("COLUMNAS_FM"))
@@ -213,6 +221,8 @@ COLUMNS_TV = json.loads(env("COLUMNAS_TV"))
 COLUMNS_AM = json.loads(env("COLUMNAS_AM"))
 COLUMNS_AUT = json.loads(env("COLUMNAS_AUT"))
 COLUMNS_AUTBP = json.loads(env("COLUMNAS_AUTBP"))
+
+COLUMNS_BANDS = json.loads(env("COLUMNAS_BANDAS"))
 
 SERVER_ROUTE_GPR_2023 = env("SERVER_ROUTE_GPR_2023")
 SERVER_ROUTE_GPR = env("SERVER_ROUTE_GPR")
