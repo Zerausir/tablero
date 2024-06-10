@@ -2,6 +2,7 @@ import datetime
 import pandas as pd
 import psycopg
 from django.conf import settings
+from django.views.decorators.cache import cache_page
 
 from .utils import convert_start_date, convert_end_date
 
@@ -18,27 +19,43 @@ def get_db_connection():
     )
 
 
-def fetch_data_from_db(start_date, end_date, city):
+@cache_page(60 * 10)
+def fetch_data_from_db(request):
+    start_date = request.GET.get('start_date')
+    end_date = request.GET.get('end_date')
+    city = request.GET.get('city')
+    last_query_time = request.GET.get('last_query_time')
+
+    # Convert start_date and end_date to datetime objects
+    start_date = datetime.datetime.strptime(start_date, '%Y-%m-%d')
+    end_date = datetime.datetime.strptime(end_date, '%Y-%m-%d')
+
+    # Convert last_query_time to datetime object if it exists
+    if last_query_time:
+        last_query_time = datetime.datetime.strptime(last_query_time, '%Y-%m-%d %H:%M:%S')
+
     conn = get_db_connection()
     query = """
         SELECT *
         FROM band_occupation
         WHERE city = %s AND tiempo BETWEEN %s AND %s
     """
-    print(f"Executing query: {query} with params: city={city}, start_date={start_date}, end_date={end_date}")
-    df = pd.read_sql(query, conn, params=[city, start_date, end_date])
+    if last_query_time is not None:
+        query += " AND tiempo > %s"
+        params = [city, start_date, end_date, last_query_time]
+    else:
+        params = [city, start_date, end_date]
+    df = pd.read_sql(query, conn, params=params)
     conn.close()
-    print(f"Data fetched: {df.head()}")
     return df
 
 
-def customize_data(selected_options: dict) -> tuple[
-    pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-    ciudad = selected_options['city']
-    fecha_inicio = convert_start_date(selected_options['start_date'])
-    fecha_fin = convert_end_date(selected_options['end_date'])
+def customize_data(request):
+    ciudad = request.GET.get('city')
+    fecha_inicio = convert_start_date(request.GET.get('start_date'))
+    fecha_fin = convert_end_date(request.GET.get('end_date'))
 
-    df_data = fetch_data_from_db(fecha_inicio, fecha_fin, ciudad)
+    df_data = fetch_data_from_db(request)
     print(f"Fetched data for {ciudad} from {fecha_inicio} to {fecha_fin}: {df_data.head()}")
 
     if df_data.empty:

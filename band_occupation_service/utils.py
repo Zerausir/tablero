@@ -177,35 +177,98 @@ def create_heatmap_data(df: pd.DataFrame) -> go.Figure:
 
 
 def create_heatmap_layout(df_original1: pd.DataFrame, df_original2: pd.DataFrame,
-                          df_original3: pd.DataFrame) -> dcc.Tabs:
+                          df_original3: pd.DataFrame, threshold: float) -> dcc.Tabs:
     """
-    Create a tabs layout with dropdowns, tables, and placeholders for heatmaps for three different data sources.
+    Create a tabs layout with dropdowns, tables, and placeholders for heatmaps and scatter plots for three different data sources.
 
     Args:
         df_original1 (pd.DataFrame): DataFrame for the first tab.
         df_original2 (pd.DataFrame): DataFrame for the second tab.
         df_original3 (pd.DataFrame): DataFrame for the third tab.
+        threshold (float): The threshold value for level_dbuv_m.
 
     Returns:
-        dcc.Tabs: Tabs component containing dropdowns, tables, and graph placeholders.
+        dcc.Tabs: Tabs component containing dropdowns, tables, graph placeholders, and scatter plots.
     """
     table1 = create_dash_datatable('table1', df_original1)
     table2 = create_dash_datatable('table2', df_original2)
     table3 = create_dash_datatable('table3', df_original3)
 
+    scatter1 = create_scatter_plot(calculate_occupation_percentage(df_original1, threshold))
+    scatter2 = create_scatter_plot(calculate_occupation_percentage(df_original2, threshold))
+    scatter3 = create_scatter_plot(calculate_occupation_percentage(df_original3, threshold))
+
     tabs_layout = dcc.Tabs(id='tabs-container', children=[
         dcc.Tab(label='Banda de frecuencias: 703-733 MHz', children=[
             table1,
             dcc.Graph(id='heatmap1'),
+            dcc.Graph(id='scatter1', figure=scatter1),
         ]),
         dcc.Tab(label='Banda de frecuencias: 758-788 MHz', children=[
             table2,
             dcc.Graph(id='heatmap2'),
+            dcc.Graph(id='scatter2', figure=scatter2),
         ]),
         dcc.Tab(label='Banda de frecuencias: 2500-2690 MHz', children=[
             table3,
             dcc.Graph(id='heatmap3'),
+            dcc.Graph(id='scatter3', figure=scatter3),
         ]),
     ])
 
     return tabs_layout
+
+
+def calculate_occupation_percentage(df: pd.DataFrame, threshold: float) -> pd.DataFrame:
+    """
+    Calculate the percentage of occupation for each frequency based on the threshold.
+
+    Args:
+        df (pd.DataFrame): The DataFrame containing the data.
+        threshold (float): The threshold value for level_dbuv_m.
+
+    Returns:
+        pd.DataFrame: A DataFrame with the frequency and the corresponding occupation percentage.
+    """
+    df['level_dbuv_m'] = pd.to_numeric(df['level_dbuv_m'], errors='coerce')
+    df['occupied'] = df['level_dbuv_m'] >= threshold
+    occupation_percentage = df.groupby('frecuencia_hz')['occupied'].mean() * 100
+    return pd.DataFrame(
+        {'frecuencia_hz': occupation_percentage.index, 'occupation_percentage': occupation_percentage.values})
+
+
+def create_scatter_plot(df: pd.DataFrame) -> go.Figure:
+    """
+    Create a scatter plot from a DataFrame. The DataFrame is expected to have 'occupation_percentage'
+    and 'frecuencia_hz' columns. If the DataFrame is empty, an empty figure is returned.
+
+    Args:
+        df (pd.DataFrame): The DataFrame from which the scatter plot is to be created.
+
+    Returns:
+        go.Figure: A Plotly Scatter figure.
+    """
+    if df.empty:
+        return go.Figure()
+
+    return go.Figure(
+        data=go.Scatter(
+            x=df['frecuencia_hz'],
+            y=df['occupation_percentage'],
+            mode='markers',
+            marker=dict(
+                size=10,
+                color='rgba(152, 0, 0, .8)',
+                line=dict(
+                    width=2,
+                    color='rgb(0, 0, 0)'
+                )
+            )
+        ),
+        layout=go.Layout(
+            title='Porcentaje de Ocupación vs Frecuencia',
+            xaxis={'title': 'Frecuencia (Hz)'},
+            yaxis={'title': 'Porcentaje de Ocupación (%)'},
+            height=600,
+        )
+    )
