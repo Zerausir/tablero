@@ -1,7 +1,8 @@
 import pandas as pd
+import numpy as np
 import datetime
 import plotly.graph_objs as go
-from dash import dcc, dash_table
+from dash import dcc, dash_table, html
 
 
 def convert_end_date(date_time: str) -> datetime.datetime:
@@ -60,7 +61,7 @@ def convert_timestamps_to_strings(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def create_dash_datatable(table_id: str, dataframe: pd.DataFrame) -> dash_table.DataTable:
+def create_dash_datatable(table_id: str, dataframe: pd.DataFrame, style: dict = {}) -> dash_table.DataTable:
     """
     Create a Dash DataTable from a Pandas DataFrame with certain pre-defined styles and functionalities.
 
@@ -104,7 +105,7 @@ def create_dash_datatable(table_id: str, dataframe: pd.DataFrame) -> dash_table.
     return dash_table.DataTable(
         data=dataframe.to_dict('records'),
         columns=[{"name": col, "id": col} for col in dataframe.columns],
-        style_table={'overflowX': 'auto', 'maxHeight': '300px'},
+        style_table={'overflowX': 'auto', 'maxHeight': '300px', **style},
         style_cell={  # Default cell style
             'minWidth': '100px', 'width': '150px', 'maxWidth': '300px',
             'overflow': 'hidden',
@@ -134,13 +135,14 @@ def create_dash_datatable(table_id: str, dataframe: pd.DataFrame) -> dash_table.
     )
 
 
-def create_heatmap_data(df: pd.DataFrame) -> go.Figure:
+def create_heatmap_data(df: pd.DataFrame, x_range=None) -> go.Figure:
     """
     Create heatmap data from a DataFrame. The DataFrame is expected to have 'Level (dBµV/m)',
     'Tiempo', and 'Frecuencia (Hz)' columns. If the DataFrame is empty, an empty figure is returned.
 
     Args:
         df (pd.DataFrame): The DataFrame from which the heatmap data is to be created.
+        x_range (list, optional): The range of the x-axis. If None, the range is determined from the data.
 
     Returns:
         go.Figure: A Plotly Heatmap figure.
@@ -157,6 +159,15 @@ def create_heatmap_data(df: pd.DataFrame) -> go.Figure:
     # Utilizar "mean" en lugar de np.mean para evitar advertencias futuras
     heatmap_data = df.pivot_table(values='level_dbuv_m', index='tiempo', columns='frecuencia_hz', aggfunc='mean')
 
+    layout = go.Layout(
+        title='Nivel de Intensidad de Campo Eléctrico (dBµV/m) vs Frecuencia',
+        xaxis={'title': 'Frecuencia (Hz)'},
+        yaxis={'title': 'Tiempo'},
+    )
+
+    if x_range is not None:
+        layout['xaxis']['range'] = x_range
+
     return go.Figure(
         data=go.Heatmap(
             z=heatmap_data.values,
@@ -165,14 +176,51 @@ def create_heatmap_data(df: pd.DataFrame) -> go.Figure:
             colorscale='rainbow',
             zmin=0,
             zmax=100,
-            colorbar=dict(title='Nivel (dBµV/m)')
+            colorbar=dict(orientation='h', y=1)
         ),
-        layout=go.Layout(
-            title='Nivel de Intensidad de Campo Eléctrico por Frecuencia',
-            xaxis={'title': 'Frecuencia (Hz)'},
-            yaxis={'title': 'Tiempo'},
-            height=600,
-        )
+        layout=layout
+    )
+
+
+def create_scatter_plot(df: pd.DataFrame, x_range=None) -> go.Figure:
+    """
+    Create a scatter plot from a DataFrame. The DataFrame is expected to have 'occupation_percentage'
+    and 'frecuencia_hz' columns. If the DataFrame is empty, an empty figure is returned.
+
+    Args:
+        df (pd.DataFrame): The DataFrame from which the scatter plot is to be created.
+        x_range (list, optional): The range of the x-axis. If None, the range is determined from the data.
+
+    Returns:
+        go.Figure: A Plotly Scatter figure.
+    """
+    if df.empty:
+        return go.Figure()
+
+    layout = go.Layout(
+        title='Porcentaje de Ocupación vs Frecuencia',
+        xaxis={'title': 'Frecuencia (Hz)'},
+        yaxis={'title': 'Porcentaje de Ocupación (%)', 'range': [0, 100]},
+    )
+
+    if x_range is not None:
+        layout['xaxis']['range'] = x_range
+
+    return go.Figure(
+        data=go.Scatter(
+            x=df['frecuencia_hz'],
+            y=df['occupation_percentage'],
+            mode='markers',
+            marker=dict(
+                size=10,
+                color='rgba(152, 0, 0, .8)',
+                line=dict(
+                    width=2,
+                    color='rgb(0, 0, 0)'
+                )
+            )
+        ),
+        layout=layout
     )
 
 
@@ -190,29 +238,55 @@ def create_heatmap_layout(df_original1: pd.DataFrame, df_original2: pd.DataFrame
     Returns:
         dcc.Tabs: Tabs component containing dropdowns, tables, graph placeholders, and scatter plots.
     """
-    table1 = create_dash_datatable('table1', df_original1)
-    table2 = create_dash_datatable('table2', df_original2)
-    table3 = create_dash_datatable('table3', df_original3)
+    scatter1_df = calculate_occupation_percentage(df_original1, threshold)
+    scatter2_df = calculate_occupation_percentage(df_original2, threshold)
+    scatter3_df = calculate_occupation_percentage(df_original3, threshold)
 
-    scatter1 = create_scatter_plot(calculate_occupation_percentage(df_original1, threshold))
-    scatter2 = create_scatter_plot(calculate_occupation_percentage(df_original2, threshold))
-    scatter3 = create_scatter_plot(calculate_occupation_percentage(df_original3, threshold))
+    scatter1_df_final = scatter1_df.rename(
+        columns={'frecuencia_hz': 'Frecuencia (Hz)', 'occupation_percentage': 'Ocupación (%)'})
+    scatter2_df_final = scatter2_df.rename(
+        columns={'frecuencia_hz': 'Frecuencia (Hz)', 'occupation_percentage': 'Ocupación (%)'})
+    scatter3_df_final = scatter3_df.rename(
+        columns={'frecuencia_hz': 'Frecuencia (Hz)', 'occupation_percentage': 'Ocupación (%)'})
+
+    table1 = create_dash_datatable('table1', scatter1_df_final)
+    table2 = create_dash_datatable('table2', scatter2_df_final)
+    table3 = create_dash_datatable('table3', scatter3_df_final)
+
+    x_range1 = [scatter1_df['frecuencia_hz'].min(), scatter1_df['frecuencia_hz'].max()]
+    x_range2 = [scatter2_df['frecuencia_hz'].min(), scatter2_df['frecuencia_hz'].max()]
+    x_range3 = [scatter3_df['frecuencia_hz'].min(), scatter3_df['frecuencia_hz'].max()]
 
     tabs_layout = dcc.Tabs(id='tabs-container', children=[
         dcc.Tab(label='Banda de frecuencias: 703-733 MHz', children=[
-            table1,
-            dcc.Graph(id='heatmap1'),
-            dcc.Graph(id='scatter1', figure=scatter1),
+            html.Button("Toggle Table", id="toggle-table1", className="mr-2"),
+            html.Div(id='table1-container', children=[
+                html.Button("Download Excel", id="download-excel1", style={'display': 'none'}),
+                dcc.Download(id="download-data1"),
+                table1,
+            ], style={'display': 'none'}),  # Initially hide the table container
+            dcc.Graph(id='heatmap1', figure=create_heatmap_data(df_original1, x_range1)),
+            dcc.Graph(id='scatter1', figure=create_scatter_plot(scatter1_df, x_range1)),
         ]),
         dcc.Tab(label='Banda de frecuencias: 758-788 MHz', children=[
-            table2,
-            dcc.Graph(id='heatmap2'),
-            dcc.Graph(id='scatter2', figure=scatter2),
+            html.Button("Toggle Table", id="toggle-table2", className="mr-2"),
+            html.Div(id='table2-container', children=[
+                html.Button("Download Excel", id="download-excel2", style={'display': 'none'}),
+                dcc.Download(id="download-data2"),
+                table2,
+            ], style={'display': 'none'}),
+            dcc.Graph(id='heatmap2', figure=create_heatmap_data(df_original2, x_range2)),
+            dcc.Graph(id='scatter2', figure=create_scatter_plot(scatter2_df, x_range2)),
         ]),
         dcc.Tab(label='Banda de frecuencias: 2500-2690 MHz', children=[
-            table3,
-            dcc.Graph(id='heatmap3'),
-            dcc.Graph(id='scatter3', figure=scatter3),
+            html.Button("Toggle Table", id="toggle-table3", className="mr-2"),
+            html.Div(id='table3-container', children=[
+                html.Button("Download Excel", id="download-excel3", style={'display': 'none'}),
+                dcc.Download(id="download-data3"),
+                table3,
+            ], style={'display': 'none'}),
+            dcc.Graph(id='heatmap3', figure=create_heatmap_data(df_original3, x_range3)),
+            dcc.Graph(id='scatter3', figure=create_scatter_plot(scatter3_df, x_range3)),
         ]),
     ])
 
@@ -230,45 +304,12 @@ def calculate_occupation_percentage(df: pd.DataFrame, threshold: float) -> pd.Da
     Returns:
         pd.DataFrame: A DataFrame with the frequency and the corresponding occupation percentage.
     """
+    # Replace non-numeric values with NaN
+    df['level_dbuv_m'] = df['level_dbuv_m'].replace('-', np.nan)
+
     df['level_dbuv_m'] = pd.to_numeric(df['level_dbuv_m'], errors='coerce')
+
     df['occupied'] = df['level_dbuv_m'] >= threshold
     occupation_percentage = df.groupby('frecuencia_hz')['occupied'].mean() * 100
     return pd.DataFrame(
         {'frecuencia_hz': occupation_percentage.index, 'occupation_percentage': occupation_percentage.values})
-
-
-def create_scatter_plot(df: pd.DataFrame) -> go.Figure:
-    """
-    Create a scatter plot from a DataFrame. The DataFrame is expected to have 'occupation_percentage'
-    and 'frecuencia_hz' columns. If the DataFrame is empty, an empty figure is returned.
-
-    Args:
-        df (pd.DataFrame): The DataFrame from which the scatter plot is to be created.
-
-    Returns:
-        go.Figure: A Plotly Scatter figure.
-    """
-    if df.empty:
-        return go.Figure()
-
-    return go.Figure(
-        data=go.Scatter(
-            x=df['frecuencia_hz'],
-            y=df['occupation_percentage'],
-            mode='markers',
-            marker=dict(
-                size=10,
-                color='rgba(152, 0, 0, .8)',
-                line=dict(
-                    width=2,
-                    color='rgb(0, 0, 0)'
-                )
-            )
-        ),
-        layout=go.Layout(
-            title='Porcentaje de Ocupación vs Frecuencia',
-            xaxis={'title': 'Frecuencia (Hz)'},
-            yaxis={'title': 'Porcentaje de Ocupación (%)'},
-            height=600,
-        )
-    )

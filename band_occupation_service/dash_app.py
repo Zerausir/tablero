@@ -1,9 +1,12 @@
+import io
 import json
 import pandas as pd
+import asyncio
 from dash import dcc, html, Input, Output
 from django.conf import settings
 from django.http import HttpRequest, QueryDict
 from django_plotly_dash import DjangoDash
+from dash.dependencies import State
 
 from .utils import convert_timestamps_to_strings, create_heatmap_layout, create_heatmap_data
 from .services import customize_data
@@ -35,8 +38,8 @@ def define_app_layout():
             min=0,
             max=100,
             step=1,
-            value=50,
-            marks={i: str(i) for i in range(0, 101, 10)},
+            value=40,
+            marks={i: f"{str(i)} dbuB/m" for i in range(0, 101, 10)},
             tooltip={"placement": "bottom", "always_visible": True},
         ),
         dcc.Loading(
@@ -116,6 +119,99 @@ def register_callbacks():
         df = pd.DataFrame(data)
         return create_heatmap_data(df)
 
+    @app.callback(
+        [Output('table1-container', 'style'),
+         Output('download-excel1', 'style')],
+        [Input('toggle-table1', 'n_clicks')],
+        [State('table1-container', 'style'),
+         State('download-excel1', 'style')]
+    )
+    def toggle_table1(n_clicks, current_table_style, current_download_style):
+        if n_clicks:
+            if current_table_style.get('display') == 'none':
+                return {'overflowX': 'auto', 'maxHeight': '300px'}, {'display': 'inline-block'}
+            else:
+                return {'display': 'none'}, current_download_style
+        return current_table_style, current_download_style
+
+    @app.callback(
+        Output("download-data1", "data"),
+        [Input("download-excel1", "n_clicks")],
+        [State('table1', 'data')]
+    )
+    def download_excel1(n_clicks, data):
+        if n_clicks:
+            df = pd.DataFrame(data)
+            excel_file = io.BytesIO()
+            with pd.ExcelWriter(excel_file, engine='openpyxl') as writer:
+                df.to_excel(writer, sheet_name='703-733MHz')
+            excel_file.seek(0)
+            return dcc.send_bytes(excel_file.read(), filename="Data_703-733MHz.xlsx")
+
+    @app.callback(
+        [Output('table2-container', 'style'),
+         Output('download-excel2', 'style')],
+        [Input('toggle-table2', 'n_clicks')],
+        [State('table2-container', 'style'),
+         State('download-excel2', 'style')]
+    )
+    def toggle_table2(n_clicks, current_table_style, current_download_style):
+        if n_clicks:
+            if current_table_style.get('display') == 'none':
+                return {'overflowX': 'auto', 'maxHeight': '300px'}, {'display': 'inline-block'}
+            else:
+                return {'display': 'none'}, current_download_style
+        return current_table_style, current_download_style
+
+    @app.callback(
+        Output("download-data2", "data"),
+        [Input("download-excel2", "n_clicks")],
+        [State('table2', 'data')]
+    )
+    def download_excel2(n_clicks, data):
+        if n_clicks:
+            df = pd.DataFrame(data)
+            excel_file = io.BytesIO()
+            with pd.ExcelWriter(excel_file, engine='openpyxl') as writer:
+                df.to_excel(writer, sheet_name='758-788MHz')
+            excel_file.seek(0)
+            return dcc.send_bytes(excel_file.read(), filename="Data_758-788MHz.xlsx")
+
+    @app.callback(
+        [Output('table3-container', 'style'),
+         Output('download-excel3', 'style')],
+        [Input('toggle-table3', 'n_clicks')],
+        [State('table3-container', 'style'),
+         State('download-excel3', 'style')]
+    )
+    def toggle_table3(n_clicks, current_table_style, current_download_style):
+        if n_clicks:
+            if current_table_style.get('display') == 'none':
+                return {'overflowX': 'auto', 'maxHeight': '300px'}, {'display': 'inline-block'}
+            else:
+                return {'display': 'none'}, current_download_style
+        return current_table_style, current_download_style
+
+    @app.callback(
+        Output("download-data3", "data"),
+        [Input("download-excel3", "n_clicks")],
+        [State('table3', 'data')]
+    )
+    def download_excel3(n_clicks, data):
+        if n_clicks:
+            df = pd.DataFrame(data)
+            excel_file = io.BytesIO()
+            with pd.ExcelWriter(excel_file, engine='openpyxl') as writer:
+                df.to_excel(writer, sheet_name='2500-2690MHz')
+            excel_file.seek(0)
+            return dcc.send_bytes(excel_file.read(), filename="Data_2500-2690MHz.xlsx")
+
+
+async def customize_data_async(request):
+    loop = asyncio.get_event_loop()
+    data = await loop.run_in_executor(None, customize_data, request)
+    return data
+
 
 def update_content(request):
     fecha_inicio = request.GET.get('start_date')
@@ -126,7 +222,8 @@ def update_content(request):
     if not all([fecha_inicio, fecha_fin, ciudad, threshold]):
         return {}, {}, {}, {}, {}, {}, "Selecciona una fecha inicial, una fecha final, una ciudad y un umbral"
 
-    data = customize_data(request)
+    data = asyncio.run(customize_data_async(request))
+
     df_original1, df_original2, df_original3 = data[:3]
     df_clean1, df_clean2, df_clean3 = data[3:]
 
