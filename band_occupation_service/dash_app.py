@@ -8,7 +8,8 @@ from django.http import HttpRequest, QueryDict
 from django_plotly_dash import DjangoDash
 from dash.dependencies import State
 
-from .utils import convert_timestamps_to_strings, create_heatmap_layout, create_heatmap_data
+from .utils import convert_timestamps_to_strings, create_heatmap_layout, create_heatmap_data, \
+    calculate_occupation_percentage, create_scatter_plot
 from .services import customize_data
 
 app = DjangoDash(
@@ -32,15 +33,6 @@ def define_app_layout():
             options=[{'label': ciudad, 'value': ciudad} for ciudad in json.loads(settings.CITIES)],
             placeholder="Selecciona una ciudad",
             style={'margin': '10px'}
-        ),
-        dcc.Slider(
-            id='threshold-slider',
-            min=0,
-            max=100,
-            step=1,
-            value=40,
-            marks={i: f"{str(i)} dbuB/m" for i in range(0, 101, 10)},
-            tooltip={"placement": "bottom", "always_visible": True},
         ),
         dcc.Loading(
             id="loading-1",
@@ -83,16 +75,14 @@ def register_callbacks():
          Output('data-container', 'children')],
         [Input('date-picker-range', 'start_date'),
          Input('date-picker-range', 'end_date'),
-         Input('city-dropdown', 'value'),
-         Input('threshold-slider', 'value')]
+         Input('city-dropdown', 'value')]
     )
-    def update_content_wrapper(fecha_inicio, fecha_fin, ciudad, threshold):
+    def update_content_wrapper(fecha_inicio, fecha_fin, ciudad):
         request = HttpRequest()
         request.GET = QueryDict(mutable=True)
         request.GET['start_date'] = fecha_inicio
         request.GET['end_date'] = fecha_fin
         request.GET['city'] = ciudad
-        request.GET['threshold'] = threshold
         return update_content(request)
 
     @app.callback(
@@ -120,14 +110,60 @@ def register_callbacks():
         return create_heatmap_data(df)
 
     @app.callback(
+        [Output('scatter1', 'figure'),
+         Output('table1', 'data')],  # Add the table container as an output
+        [Input('threshold-slider1', 'value')],
+        [State('store-df-original1', 'data')]
+    )
+    def update_scatter1(threshold, data):
+        df = pd.DataFrame(data)
+        scatter1_df = calculate_occupation_percentage(df, threshold)
+        x_range1 = [scatter1_df['frecuencia_hz'].min(), scatter1_df['frecuencia_hz'].max()]
+        scatter1_fig = create_scatter_plot(scatter1_df, x_range1, threshold)
+        scatter1_df.columns = ['Frecuencia (Hz)', 'Ocupación (%)']
+        table1_data = scatter1_df.to_dict('records')  # Convert the dataframe to a dictionary
+        return scatter1_fig, table1_data  # Return the scatter plot figure and the table data
+
+    @app.callback(
+        [Output('scatter2', 'figure'),
+         Output('table2', 'data')],  # Add the table container as an output
+        [Input('threshold-slider2', 'value')],
+        [State('store-df-original2', 'data')]
+    )
+    def update_scatter2(threshold, data):
+        df = pd.DataFrame(data)
+        scatter2_df = calculate_occupation_percentage(df, threshold)
+        x_range2 = [scatter2_df['frecuencia_hz'].min(), scatter2_df['frecuencia_hz'].max()]
+        scatter2_fig = create_scatter_plot(scatter2_df, x_range2, threshold)
+        scatter2_df.columns = ['Frecuencia (Hz)', 'Ocupación (%)']
+        table2_data = scatter2_df.to_dict('records')  # Convert the dataframe to a dictionary
+        return scatter2_fig, table2_data  # Return the scatter plot figure and the table data
+
+    @app.callback(
+        [Output('scatter3', 'figure'),
+         Output('table3', 'data')],  # Add the table container as an output
+        [Input('threshold-slider3', 'value')],
+        [State('store-df-original3', 'data')]
+    )
+    def update_scatter3(threshold, data):
+        df = pd.DataFrame(data)
+        scatter3_df = calculate_occupation_percentage(df, threshold)
+        x_range3 = [scatter3_df['frecuencia_hz'].min(), scatter3_df['frecuencia_hz'].max()]
+        scatter3_fig = create_scatter_plot(scatter3_df, x_range3, threshold)
+        scatter3_df.columns = ['Frecuencia (Hz)', 'Ocupación (%)']
+        table3_data = scatter3_df.to_dict('records')  # Convert the dataframe to a dictionary
+        return scatter3_fig, table3_data  # Return the scatter plot figure and the table data
+
+    @app.callback(
         [Output('table1-container', 'style'),
          Output('download-excel1', 'style')],
-        [Input('toggle-table1', 'n_clicks')],
+        [Input('toggle-table1', 'n_clicks'),
+         Input('threshold-slider1', 'value')],
         [State('table1-container', 'style'),
          State('download-excel1', 'style')]
     )
-    def toggle_table1(n_clicks, current_table_style, current_download_style):
-        if n_clicks:
+    def toggle_table1(n_clicks, threshold, current_table_style, current_download_style):
+        if n_clicks and threshold is not None:
             if current_table_style.get('display') == 'none':
                 return {'overflowX': 'auto', 'maxHeight': '300px'}, {'display': 'inline-block'}
             else:
@@ -151,12 +187,13 @@ def register_callbacks():
     @app.callback(
         [Output('table2-container', 'style'),
          Output('download-excel2', 'style')],
-        [Input('toggle-table2', 'n_clicks')],
+        [Input('toggle-table2', 'n_clicks'),
+         Input('threshold-slider2', 'value')],
         [State('table2-container', 'style'),
          State('download-excel2', 'style')]
     )
-    def toggle_table2(n_clicks, current_table_style, current_download_style):
-        if n_clicks:
+    def toggle_table2(n_clicks, threshold, current_table_style, current_download_style):
+        if n_clicks and threshold is not None:
             if current_table_style.get('display') == 'none':
                 return {'overflowX': 'auto', 'maxHeight': '300px'}, {'display': 'inline-block'}
             else:
@@ -180,12 +217,13 @@ def register_callbacks():
     @app.callback(
         [Output('table3-container', 'style'),
          Output('download-excel3', 'style')],
-        [Input('toggle-table3', 'n_clicks')],
+        [Input('toggle-table3', 'n_clicks'),
+         Input('threshold-slider3', 'value')],
         [State('table3-container', 'style'),
          State('download-excel3', 'style')]
     )
-    def toggle_table3(n_clicks, current_table_style, current_download_style):
-        if n_clicks:
+    def toggle_table3(n_clicks, threshold, current_table_style, current_download_style):
+        if n_clicks and threshold is not None:
             if current_table_style.get('display') == 'none':
                 return {'overflowX': 'auto', 'maxHeight': '300px'}, {'display': 'inline-block'}
             else:
@@ -217,9 +255,8 @@ def update_content(request):
     fecha_inicio = request.GET.get('start_date')
     fecha_fin = request.GET.get('end_date')
     ciudad = request.GET.get('city')
-    threshold = request.GET.get('threshold')
 
-    if not all([fecha_inicio, fecha_fin, ciudad, threshold]):
+    if not all([fecha_inicio, fecha_fin, ciudad]):
         return {}, {}, {}, {}, {}, {}, "Selecciona una fecha inicial, una fecha final, una ciudad y un umbral"
 
     data = asyncio.run(customize_data_async(request))
@@ -231,7 +268,7 @@ def update_content(request):
     df_original2 = convert_timestamps_to_strings(df_original2)
     df_original3 = convert_timestamps_to_strings(df_original3)
 
-    tabs_layout = create_heatmap_layout(df_original1, df_original2, df_original3, float(threshold))
+    tabs_layout = create_heatmap_layout(df_original1, df_original2, df_original3)
 
     return df_original1.to_dict('records'), df_original2.to_dict('records'), df_original3.to_dict('records'), \
         df_clean1.to_dict('records'), df_clean2.to_dict('records'), df_clean3.to_dict('records'), tabs_layout

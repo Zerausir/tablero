@@ -61,50 +61,19 @@ def convert_timestamps_to_strings(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def create_dash_datatable(table_id: str, dataframe: pd.DataFrame, style: dict = {}) -> dash_table.DataTable:
+def create_dash_datatable(table_id: str, style: dict = {}) -> dash_table.DataTable:
     """
-    Create a Dash DataTable from a Pandas DataFrame with certain pre-defined styles and functionalities.
+    Create a Dash DataTable with a given table ID and style.
 
     Args:
         table_id (str): Identifier for the Dash DataTable.
-        dataframe (pd.DataFrame): The DataFrame from which the Dash DataTable is to be created.
+        style (dict, optional): Style for the Dash DataTable.
 
     Returns:
         dash_table.DataTable: A Dash DataTable component.
     """
-    # Define the range for your color scale
-    zmin = 0
-    zmax = 130
-
-    # Define the Plotly rainbow color scale
-    plotly_rainbow_scale = ['rgb(150,0,90)', 'rgb(0,0,200)', 'rgb(0,25,255)', 'rgb(0,152,255)',
-                            'rgb(44,255,150)', 'rgb(151,255,0)', 'rgb(255,234,0)', 'rgb(255,111,0)', 'rgb(255,0,0)']
-
-    # Function to determine if text color should be white or black based on background color
-    def text_color_based_on_background(background_color):
-        # Parse the background color string and get R, G, B values
-        r, g, b = [int(x) for x in background_color.replace('rgb(', '').replace(')', '').split(',')]
-        # Calculate the luminance
-        luminance = (0.299 * r + 0.587 * g + 0.114 * b)
-        # Return 'white' for dark background colors and 'black' for light background colors
-        return 'white' if luminance < 150 else 'black'
-
-    # Create conditional formatting for the 'Level (dBµV/m)' column
-    style_data_conditional = [
-        {
-            'if': {
-                'filter_query': f'{{level_dbuv_m}} >= {zmin + (zmax - zmin) * i / (len(plotly_rainbow_scale) - 1)} && {{level_dbuv_m}} < {zmin + (zmax - zmin) * (i + 1) / (len(plotly_rainbow_scale) - 1)}',
-                'column_id': 'level_dbuv_m'
-            },
-            'backgroundColor': plotly_rainbow_scale[i],
-            'color': text_color_based_on_background(plotly_rainbow_scale[i])
-        }
-        for i in range(len(plotly_rainbow_scale))  # Iterate through the color scale
-    ]
-
     return dash_table.DataTable(
-        data=dataframe.to_dict('records'),
-        columns=[{"name": col, "id": col} for col in dataframe.columns],
+        id=table_id,
         style_table={'overflowX': 'auto', 'maxHeight': '300px', **style},
         style_cell={  # Default cell style
             'minWidth': '100px', 'width': '150px', 'maxWidth': '300px',
@@ -129,8 +98,6 @@ def create_dash_datatable(table_id: str, dataframe: pd.DataFrame, style: dict = 
         page_action="native",
         page_current=0,
         page_size=100,
-        id=table_id,
-        style_data_conditional=style_data_conditional,
         fixed_rows={'headers': True},  # This line fixes the header row at the top
     )
 
@@ -162,7 +129,8 @@ def create_heatmap_data(df: pd.DataFrame, x_range=None) -> go.Figure:
     layout = go.Layout(
         title='Nivel de Intensidad de Campo Eléctrico (dBµV/m) vs Frecuencia',
         xaxis={'title': 'Frecuencia (Hz)'},
-        yaxis={'title': 'Tiempo'},
+        yaxis={'title': 'Tiempo', 'tickfont': {'size': 11}},
+        margin=dict(l=100)
     )
 
     if x_range is not None:
@@ -182,7 +150,7 @@ def create_heatmap_data(df: pd.DataFrame, x_range=None) -> go.Figure:
     )
 
 
-def create_scatter_plot(df: pd.DataFrame, x_range=None) -> go.Figure:
+def create_scatter_plot(df: pd.DataFrame, x_range=None, threshold=None) -> go.Figure:
     """
     Create a scatter plot from a DataFrame. The DataFrame is expected to have 'occupation_percentage'
     and 'frecuencia_hz' columns. If the DataFrame is empty, an empty figure is returned.
@@ -197,10 +165,15 @@ def create_scatter_plot(df: pd.DataFrame, x_range=None) -> go.Figure:
     if df.empty:
         return go.Figure()
 
+    title = 'Porcentaje de Ocupación vs Frecuencia'
+    if threshold is not None:
+        title += f' (Umbral = {threshold} dBµV/m)'
+
     layout = go.Layout(
-        title='Porcentaje de Ocupación vs Frecuencia',
+        title=title,
         xaxis={'title': 'Frecuencia (Hz)'},
         yaxis={'title': 'Porcentaje de Ocupación (%)', 'range': [0, 100]},
+        margin=dict(l=100)
     )
 
     if x_range is not None:
@@ -225,71 +198,66 @@ def create_scatter_plot(df: pd.DataFrame, x_range=None) -> go.Figure:
 
 
 def create_heatmap_layout(df_original1: pd.DataFrame, df_original2: pd.DataFrame,
-                          df_original3: pd.DataFrame, threshold: float) -> dcc.Tabs:
-    """
-    Create a tabs layout with dropdowns, tables, and placeholders for heatmaps and scatter plots for three different data sources.
-
-    Args:
-        df_original1 (pd.DataFrame): DataFrame for the first tab.
-        df_original2 (pd.DataFrame): DataFrame for the second tab.
-        df_original3 (pd.DataFrame): DataFrame for the third tab.
-        threshold (float): The threshold value for level_dbuv_m.
-
-    Returns:
-        dcc.Tabs: Tabs component containing dropdowns, tables, graph placeholders, and scatter plots.
-    """
-    scatter1_df = calculate_occupation_percentage(df_original1, threshold)
-    scatter2_df = calculate_occupation_percentage(df_original2, threshold)
-    scatter3_df = calculate_occupation_percentage(df_original3, threshold)
-
-    scatter1_df_final = scatter1_df.rename(
-        columns={'frecuencia_hz': 'Frecuencia (Hz)', 'occupation_percentage': 'Ocupación (%)'})
-    scatter2_df_final = scatter2_df.rename(
-        columns={'frecuencia_hz': 'Frecuencia (Hz)', 'occupation_percentage': 'Ocupación (%)'})
-    scatter3_df_final = scatter3_df.rename(
-        columns={'frecuencia_hz': 'Frecuencia (Hz)', 'occupation_percentage': 'Ocupación (%)'})
-
-    table1 = create_dash_datatable('table1', scatter1_df_final)
-    table2 = create_dash_datatable('table2', scatter2_df_final)
-    table3 = create_dash_datatable('table3', scatter3_df_final)
-
-    x_range1 = [scatter1_df['frecuencia_hz'].min(), scatter1_df['frecuencia_hz'].max()]
-    x_range2 = [scatter2_df['frecuencia_hz'].min(), scatter2_df['frecuencia_hz'].max()]
-    x_range3 = [scatter3_df['frecuencia_hz'].min(), scatter3_df['frecuencia_hz'].max()]
-
+                          df_original3: pd.DataFrame) -> dcc.Tabs:
     tabs_layout = dcc.Tabs(id='tabs-container', children=[
         dcc.Tab(label='Banda de frecuencias: 703-733 MHz', children=[
+            dcc.Graph(id='heatmap1', figure=create_heatmap_data(df_original1)),
+            dcc.Slider(
+                id='threshold-slider1',
+                min=0,
+                max=100,
+                step=1,
+                value=None,
+                marks={i: f"{str(i)} dBµV/m" for i in range(0, 101, 10)},
+                tooltip={"placement": "bottom", "always_visible": True},
+            ),
+            dcc.Graph(id='scatter1'),
             html.Button("Toggle Table", id="toggle-table1", className="mr-2"),
             html.Div(id='table1-container', children=[
                 html.Button("Download Excel", id="download-excel1", style={'display': 'none'}),
                 dcc.Download(id="download-data1"),
-                table1,
-            ], style={'display': 'none'}),  # Initially hide the table container
-            dcc.Graph(id='heatmap1', figure=create_heatmap_data(df_original1, x_range1)),
-            dcc.Graph(id='scatter1', figure=create_scatter_plot(scatter1_df, x_range1)),
+                create_dash_datatable('table1'),
+            ], style={'display': 'none'}),
         ]),
         dcc.Tab(label='Banda de frecuencias: 758-788 MHz', children=[
+            dcc.Graph(id='heatmap2', figure=create_heatmap_data(df_original2)),
+            dcc.Slider(
+                id='threshold-slider2',
+                min=0,
+                max=100,
+                step=1,
+                value=None,
+                marks={i: f"{str(i)} dBµV/m" for i in range(0, 101, 10)},
+                tooltip={"placement": "bottom", "always_visible": True},
+            ),
+            dcc.Graph(id='scatter2'),
             html.Button("Toggle Table", id="toggle-table2", className="mr-2"),
             html.Div(id='table2-container', children=[
                 html.Button("Download Excel", id="download-excel2", style={'display': 'none'}),
                 dcc.Download(id="download-data2"),
-                table2,
+                create_dash_datatable('table2'),
             ], style={'display': 'none'}),
-            dcc.Graph(id='heatmap2', figure=create_heatmap_data(df_original2, x_range2)),
-            dcc.Graph(id='scatter2', figure=create_scatter_plot(scatter2_df, x_range2)),
         ]),
         dcc.Tab(label='Banda de frecuencias: 2500-2690 MHz', children=[
+            dcc.Graph(id='heatmap3', figure=create_heatmap_data(df_original3)),
+            dcc.Slider(
+                id='threshold-slider3',
+                min=0,
+                max=100,
+                step=1,
+                value=None,
+                marks={i: f"{str(i)} dBµV/m" for i in range(0, 101, 10)},
+                tooltip={"placement": "bottom", "always_visible": True},
+            ),
+            dcc.Graph(id='scatter3'),
             html.Button("Toggle Table", id="toggle-table3", className="mr-2"),
             html.Div(id='table3-container', children=[
                 html.Button("Download Excel", id="download-excel3", style={'display': 'none'}),
                 dcc.Download(id="download-data3"),
-                table3,
+                create_dash_datatable('table3'),
             ], style={'display': 'none'}),
-            dcc.Graph(id='heatmap3', figure=create_heatmap_data(df_original3, x_range3)),
-            dcc.Graph(id='scatter3', figure=create_scatter_plot(scatter3_df, x_range3)),
         ]),
     ])
-
     return tabs_layout
 
 
