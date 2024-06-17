@@ -130,7 +130,7 @@ def create_heatmap_data(df: pd.DataFrame, x_range=None) -> go.Figure:
         title='Nivel de Intensidad de Campo Eléctrico (dBµV/m) vs Frecuencia',
         xaxis={'title': 'Frecuencia (Hz)'},
         yaxis={'title': 'Tiempo', 'tickfont': {'size': 11}},
-        margin=dict(l=100)
+        margin=dict(l=112)
     )
 
     if x_range is not None:
@@ -173,7 +173,7 @@ def create_scatter_plot(df: pd.DataFrame, x_range=None, threshold=None) -> go.Fi
         title=title,
         xaxis={'title': 'Frecuencia (Hz)'},
         yaxis={'title': 'Porcentaje de Ocupación (%)', 'range': [0, 100]},
-        margin=dict(l=100)
+        margin=dict(l=112)
     )
 
     if x_range is not None:
