@@ -28,10 +28,17 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = env("DJANGO_SECRET_KEY")
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = env.bool("DJANGO_DEBUG")
+DEBUG = env.bool("DJANGO_DEBUG", default=False)
 
-ALLOWED_HOSTS = []
+SECURE_SSL_REDIRECT = env.bool("DJANGO_SECURE_SSL_REDIRECT", default=True)
+SECURE_HSTS_SECONDS = env.int("DJANGO_SECURE_HSTS_SECONDS", default=2592000)
+SECURE_HSTS_INCLUDE_SUBDOMAINS = env.bool("DJANGO_SECURE_HSTS_INCLUDE_SUBDOMAINS", default=True)
+SECURE_HSTS_PRELOAD = env.bool("DJANGO_SECURE_HSTS_PRELOAD", default=True)
 
+SESSION_COOKIE_SECURE = env.bool("DJANGO_SESSION_COOKIE_SECURE", default=True)
+CSRF_COOKIE_SECURE = env.bool("DJANGO_CSRF_COOKIE_SECURE", default=True)
+
+ALLOWED_HOSTS = json.loads(env("ALLOWED_HOSTS"))
 # Application definition
 
 INSTALLED_APPS = [
@@ -45,6 +52,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'django_plotly_dash.apps.DjangoPlotlyDashConfig',
     'bootstrap4',
+    'daphne',
     # Local
     'index_service.apps.IndexServiceConfig',
     'general_report_service.apps.GeneralReportServiceConfig',
@@ -84,6 +92,7 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = "tablero.wsgi.application"
+ASGI_APPLICATION = "tablero.asgi.application"
 
 # Database
 # https://docs.djangoproject.com/en/5.0/ref/settings/#databases
@@ -264,7 +273,7 @@ RUTA_CCDE_09 = env("RUTA_CCDE_09")
 RUTA_CCDE_10 = env("RUTA_CCDE_10")
 RUTA_CCDE_11 = env("RUTA_CCDE_11")
 
-RUTA_CCDH_01= env("RUTA_CCDH_01")
+RUTA_CCDH_01 = env("RUTA_CCDH_01")
 
 RUTA_CCDS_01 = env("RUTA_CCDS_01")
 RUTA_CCDS_03 = env("RUTA_CCDS_03")
