@@ -47,17 +47,17 @@ INSTALLED_APPS = [
     "django.contrib.contenttypes",
     "django.contrib.sessions",
     "django.contrib.messages",
+    "daphne",
     "django.contrib.staticfiles",
     # 3rd-party apps
-    'rest_framework',
-    'django_plotly_dash.apps.DjangoPlotlyDashConfig',
-    'bootstrap4',
-    'daphne',
+    "rest_framework",
+    "django_plotly_dash.apps.DjangoPlotlyDashConfig",
+    "bootstrap4",
     # Local
-    'index_service.apps.IndexServiceConfig',
-    'general_report_service.apps.GeneralReportServiceConfig',
-    'gpr_service.apps.GprServiceConfig',
-    'band_occupation_service.apps.BandOccupationServiceConfig',
+    "index_service.apps.IndexServiceConfig",
+    "general_report_service.apps.GeneralReportServiceConfig",
+    "gpr_service.apps.GprServiceConfig",
+    "band_occupation_service.apps.BandOccupationServiceConfig",
 ]
 
 MIDDLEWARE = [
