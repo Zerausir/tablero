@@ -3,6 +3,7 @@ import numpy as np
 import datetime
 import plotly.graph_objs as go
 from dash import dcc, dash_table, html
+from sklearn.metrics import auc
 
 
 def convert_end_date(date_time: str) -> datetime.datetime:
@@ -168,6 +169,20 @@ def create_scatter_plot(df: pd.DataFrame, x_range=None, threshold=None) -> go.Fi
     title = 'Porcentaje de Ocupación vs Frecuencia'
     if threshold is not None:
         title += f' (Umbral = {threshold} dBµV/m)'
+
+    # Sort the dataframe by 'frecuencia_hz'
+    df = df.sort_values(by='frecuencia_hz')
+
+    # Calculate AUC
+    auc_value = auc(df['frecuencia_hz'], df['occupation_percentage'])
+
+    # Calculate total rectangle area
+    total_area = (df['frecuencia_hz'].max() - df['frecuencia_hz'].min()) * 100
+
+    # Calculate band occupation percentage
+    band_occupation_percentage = (auc_value / total_area) * 100
+
+    title += f' - Porcentaje de Ocupación de la Banda = {band_occupation_percentage:.2f}%'
 
     layout = go.Layout(
         title=title,
