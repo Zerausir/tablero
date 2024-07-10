@@ -35,6 +35,9 @@ def update_table(dataframe, selected_indicador, table_id):
 
 def wrap_text(text, width=110):
     """ Inserta saltos de línea en el texto para que se ajuste al ancho dado. """
+    if text is None:
+        return ""
+
     words = text.split()
     lines = []
     current_line = []
@@ -70,18 +73,22 @@ def create_pie_charts_for_indicators(df, selected_date):
 
         if tipo == 'CONTINUO':
             # Manejo común para todos los CONTINUO, excepto CCDS-13 y CCDR-06
-            if 'CCDS-13' in data_indicador['INDICADOR_CORTO'].values:
+            if 'CCDS-01' in data_indicador['INDICADOR_CORTO'].values:
                 cantidad_verificables = data_indicador[
                     'Nro_INSPECCIONES'].sum() if 'Nro_INSPECCIONES' in data_indicador else 0
-            elif 'CCDR-06' in data_indicador['INDICADOR_CORTO'].values:
+            elif 'CCDS-13' in data_indicador['INDICADOR_CORTO'].values:
                 cantidad_verificables = data_indicador[
                     'Nro_INSPECCIONES'].sum() if 'Nro_INSPECCIONES' in data_indicador else 0
             else:
                 cantidad_verificables = data_indicador[
                     'CANTIDAD_VERIFICABLES'].sum() if 'CANTIDAD_VERIFICABLES' in data_indicador else 0
         else:  # 'DISCRETO'
-            cantidad_verificables = data_indicador[
-                'CANTIDAD_VERIFICABLES'].sum() if 'CANTIDAD_VERIFICABLES' in data_indicador else 0
+            if 'CCDR-06' in data_indicador['INDICADOR_CORTO'].values:
+                cantidad_verificables = data_indicador[
+                    'Nro_INSPECCIONES'].sum() if 'Nro_INSPECCIONES' in data_indicador else 0
+            else:
+                cantidad_verificables = data_indicador[
+                    'CANTIDAD_VERIFICABLES'].sum() if 'CANTIDAD_VERIFICABLES' in data_indicador else 0
 
         avance_global = min(cantidad_verificables / planificada * 100 if planificada > 0 else 0, 100)
         restante_global = max(100 - avance_global, 0)
@@ -127,7 +134,9 @@ def create_summary_pie_charts(df, selected_date):
         # Para Global Planificado
         df_filtered = df_filtered.copy()
         df_filtered.loc[:, 'Porcentaje_Global'] = df_filtered.apply(
-            lambda row: min(row['CANTIDAD_VERIFICABLES'] / row['PLANIFICADA_META'], 1), axis=1)
+            lambda row: min(
+                row['CANTIDAD_VERIFICABLES'] / row['PLANIFICADA_META'] if row['PLANIFICADA_META'] > 0 else 0, 1),
+            axis=1)
         porcentaje_global_total = df_filtered['Porcentaje_Global'].sum() / len(df_filtered) * 100
         restante_global = max(100 - porcentaje_global_total, 0)
 

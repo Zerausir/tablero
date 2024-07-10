@@ -44,12 +44,10 @@ def load_environment_variables():
         'RUTA_CCDE_05': settings.RUTA_CCDE_05,
         'RUTA_CCDE_06': settings.RUTA_CCDE_06,
         'RUTA_CCDE_07': settings.RUTA_CCDE_07,
-        'RUTA_CCDE_08': settings.RUTA_CCDE_08,
         'RUTA_CCDE_09': settings.RUTA_CCDE_09,
-        'RUTA_CCDE_10': settings.RUTA_CCDE_10,
         'RUTA_CCDE_11': settings.RUTA_CCDE_11,
         'RUTA_CCDH_01': settings.RUTA_CCDH_01,
-        'RUTA_CCDS_01': settings.RUTA_CCDS_01,
+        'RUTA_CCDR_04': settings.RUTA_CCDR_04,
         'RUTA_CCDS_03': settings.RUTA_CCDS_03,
         'RUTA_CCDS_05': settings.RUTA_CCDS_05,
         'RUTA_CCDS_08': settings.RUTA_CCDS_08,
@@ -57,7 +55,6 @@ def load_environment_variables():
         'RUTA_CCDS_10': settings.RUTA_CCDS_10,
         'RUTA_CCDS_11': settings.RUTA_CCDS_11,
         'RUTA_CCDS_12': settings.RUTA_CCDS_12,
-        'RUTA_CCDS_13': settings.RUTA_CCDS_13,
         'RUTA_CCDS_16': settings.RUTA_CCDS_16,
         'RUTA_CCDS_17': settings.RUTA_CCDS_17,
         'RUTA_CCDS_18': settings.RUTA_CCDS_18,
@@ -66,9 +63,6 @@ def load_environment_variables():
         'RUTA_CCDS_30': settings.RUTA_CCDS_30,
         'RUTA_CCDS_31': settings.RUTA_CCDS_31,
         'RUTA_CCDS_32': settings.RUTA_CCDS_32,
-        'RUTA_CCDR_01': settings.RUTA_CCDR_01,
-        'RUTA_CCDR_04': settings.RUTA_CCDR_04,
-        'RUTA_CCDR_06': settings.RUTA_CCDR_06,
     }
 
 
@@ -105,7 +99,7 @@ def read_excel_data2024(server_route, file_informes, columnas_informes):
     # Read DATOS sheet
     df_datos = pd.read_excel(f'{server_route}/{file_informes}', sheet_name='DATOS')
     df_datos['RUTA'] = df_datos['RUTA'].str.replace('\\', '/')
-    df_datos['Nro INSPECCIONES'] = df_datos['Nro INSPECCIONES'].fillna('')
+    df_datos['Nro INSPECCIONES'] = pd.to_numeric(df_datos['Nro INSPECCIONES'], errors='coerce')
     df_datos[['Nro. ACTIVIDAD', 'INDICADOR AÑO']] = df_datos[['Nro. ACTIVIDAD', 'INDICADOR AÑO']].astype('int')
     df_datos[
         ['ACTIVIDAD', 'RAZÓN SOCIAL', 'NOMBRE DEL SISTEMA', 'FRECUENCIA / CANAL', 'CATEGORÍA',
@@ -365,7 +359,7 @@ def procesar_mes_con_fecha(dataframe, fecha_str):
             valores_no_nulos = row[meses_evaluar].dropna()
             return valores_no_nulos.sum() * row['META_ANUAL'] if not valores_no_nulos.empty else 0.0
         else:  # Para tipo DISCRETO
-            if row['INDICADOR_CORTO'] in ['CCDR-01', 'CCDR-04', 'CCDR-06']:
+            if row['INDICADOR_CORTO'] in ['CCDR-04']:
                 return sum(row[f"{mes}_den"] * row['META_ANUAL'] for mes in meses_evaluar if
                            pd.notnull(row[mes]) and pd.notnull(row[f"{mes}_den"]))
             else:
@@ -378,8 +372,8 @@ def procesar_mes_con_fecha(dataframe, fecha_str):
 
 
 def actualizar_planificada(df):
-    # Lista de INDICADOR_CORTO que requieren actualización siempre
-    indicadores_actualizar = ['CCDE-05', 'CCDE-06', 'CCDE-07', 'CCDE-08', 'CCDE-09', 'CCDR-01']
+    # # Lista de INDICADOR_CORTO que requieren actualización siempre
+    # indicadores_actualizar = ['CCDE-05', 'CCDE-06', 'CCDE-07', 'CCDE-09']
 
     # Verificar si 'PLANIFICADA' existe en el DataFrame
     if 'PLANIFICADA' not in df.columns:
@@ -388,7 +382,7 @@ def actualizar_planificada(df):
     # Iterar sobre las filas del DataFrame
     for index, row in df.iterrows():
         # Verificar si el INDICADOR_CORTO de la fila es uno de los que siempre se deben actualizar
-        if row['INDICADOR_CORTO'] in indicadores_actualizar or pd.isnull(row['PLANIFICADA']):
+        if pd.isnull(row['PLANIFICADA']):
             if pd.notnull(row['CUMPLIR']) and pd.notnull(row['META_ANUAL']) and row['META_ANUAL'] != 0:
                 # Calcular el nuevo valor de PLANIFICADA
                 nuevo_valor = row['CUMPLIR']
