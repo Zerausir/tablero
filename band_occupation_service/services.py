@@ -54,37 +54,25 @@ def customize_data(request):
     ciudad = request.GET.get('city')
     fecha_inicio = convert_start_date(request.GET.get('start_date'))
     fecha_fin = convert_end_date(request.GET.get('end_date'))
+    start_freq = float(request.GET.get('start_freq')) * 1e6  # Convert to Hz
+    end_freq = float(request.GET.get('end_freq')) * 1e6  # Convert to Hz
 
     df_data = fetch_data_from_db(request)
     print(f"Fetched data for {ciudad} from {fecha_inicio} to {fecha_fin}: {df_data.head()}")
 
     if df_data.empty:
         print("No data found for the given parameters.")
-        return pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
+        return pd.DataFrame(), pd.DataFrame()
 
-    df_data1 = df_data[df_data['frecuencia_hz'].between(703 * 1e6, 733 * 1e6)]
-    df_data2 = df_data[df_data['frecuencia_hz'].between(758 * 1e6, 788 * 1e6)]
-    df_data3 = df_data[df_data['frecuencia_hz'].between(2500 * 1e6, 2690 * 1e6)]
+    df_data = df_data[df_data['frecuencia_hz'].between(start_freq, end_freq)]
 
-    df_original1 = df_data1.copy()
-    df_clean1 = clean_data(fecha_inicio, fecha_fin, df_original1)
-    df_original1 = df_clean1.sort_values(by='tiempo', ascending=False).fillna('-')
-    df_clean1 = df_clean1.groupby(['frecuencia_hz', pd.Grouper(key='tiempo', freq='D')]).agg(
+    df_original = df_data.copy()
+    df_clean = clean_data(fecha_inicio, fecha_fin, df_original)
+    df_original = df_clean.sort_values(by='tiempo', ascending=False).fillna('-')
+    df_clean = df_clean.groupby(['frecuencia_hz', pd.Grouper(key='tiempo', freq='D')]).agg(
         {'level_dbuv_m': 'max'}).reset_index()
 
-    df_original2 = df_data2.copy()
-    df_clean2 = clean_data(fecha_inicio, fecha_fin, df_original2)
-    df_original2 = df_clean2.sort_values(by='tiempo', ascending=False).fillna('-')
-    df_clean2 = df_clean2.groupby(['frecuencia_hz', pd.Grouper(key='tiempo', freq='D')]).agg(
-        {'level_dbuv_m': 'max'}).reset_index()
-
-    df_original3 = df_data3.copy()
-    df_clean3 = clean_data(fecha_inicio, fecha_fin, df_original3)
-    df_original3 = df_clean3.sort_values(by='tiempo', ascending=False).fillna('-')
-    df_clean3 = df_clean3.groupby(['frecuencia_hz', pd.Grouper(key='tiempo', freq='D')]).agg(
-        {'level_dbuv_m': 'max'}).reset_index()
-
-    return df_original1, df_original2, df_original3, df_clean1, df_clean2, df_clean3
+    return df_original, df_clean
 
 
 def clean_data(start_date: datetime.datetime, end_date: datetime.datetime, df_primary: pd.DataFrame) -> pd.DataFrame:

@@ -34,6 +34,18 @@ def define_app_layout():
             placeholder="Selecciona una ciudad",
             style={'margin': '10px'}
         ),
+        dcc.Input(
+            id='start-freq-input',
+            type='number',
+            placeholder='Frecuencia inicial (MHz)',
+            style={'margin': '10px'}
+        ),
+        dcc.Input(
+            id='end-freq-input',
+            type='number',
+            placeholder='Frecuencia final (MHz)',
+            style={'margin': '10px'}
+        ),
         dcc.Loading(
             id="loading-1",
             type="default",
@@ -45,12 +57,8 @@ def define_app_layout():
             ],
             style={'margin': '10px'}
         ),
-        dcc.Store(id='store-df-original1'),
-        dcc.Store(id='store-df-original2'),
-        dcc.Store(id='store-df-original3'),
-        dcc.Store(id='store-df-original4'),
-        dcc.Store(id='store-df-original5'),
-        dcc.Store(id='store-df-original6'),
+        dcc.Store(id='store-df-original'),
+        dcc.Store(id='store-df-clean'),
     ], style={
         'display': 'flex',
         'flex-direction': 'column',
@@ -66,103 +74,57 @@ app.layout = define_app_layout()
 
 def register_callbacks():
     @app.callback(
-        [Output('store-df-original1', 'data'),
-         Output('store-df-original2', 'data'),
-         Output('store-df-original3', 'data'),
-         Output('store-df-original4', 'data'),
-         Output('store-df-original5', 'data'),
-         Output('store-df-original6', 'data'),
+        [Output('store-df-original', 'data'),
+         Output('store-df-clean', 'data'),
          Output('data-container', 'children')],
         [Input('date-picker-range', 'start_date'),
          Input('date-picker-range', 'end_date'),
-         Input('city-dropdown', 'value')]
+         Input('city-dropdown', 'value'),
+         Input('start-freq-input', 'value'),
+         Input('end-freq-input', 'value')]
     )
-    def update_content_wrapper(fecha_inicio, fecha_fin, ciudad):
+    def update_content_wrapper(fecha_inicio, fecha_fin, ciudad, start_freq, end_freq):
         request = HttpRequest()
         request.GET = QueryDict(mutable=True)
         request.GET['start_date'] = fecha_inicio
         request.GET['end_date'] = fecha_fin
         request.GET['city'] = ciudad
+        request.GET['start_freq'] = start_freq
+        request.GET['end_freq'] = end_freq
         return update_content(request)
 
     @app.callback(
-        Output('heatmap1', 'figure'),
-        [Input('store-df-original1', 'data')]
+        Output('heatmap', 'figure'),
+        [Input('store-df-original', 'data')]
     )
-    def update_heatmap1(data):
+    def update_heatmap(data):
         df = pd.DataFrame(data)
         return create_heatmap_data(df)
 
     @app.callback(
-        Output('heatmap2', 'figure'),
-        [Input('store-df-original2', 'data')]
+        [Output('scatter', 'figure'),
+         Output('table', 'data')],  # Add the table container as an output
+        [Input('threshold-slider', 'value')],
+        [State('store-df-original', 'data')]
     )
-    def update_heatmap2(data):
+    def update_scatter(threshold, data):
         df = pd.DataFrame(data)
-        return create_heatmap_data(df)
+        scatter_df = calculate_occupation_percentage(df, threshold)
+        x_range = [scatter_df['frecuencia_hz'].min(), scatter_df['frecuencia_hz'].max()]
+        scatter_fig = create_scatter_plot(scatter_df, x_range, threshold)
+        scatter_df.columns = ['Frecuencia (Hz)', 'Ocupación (%)']
+        table_data = scatter_df.to_dict('records')  # Convert the dataframe to a dictionary
+        return scatter_fig, table_data  # Return the scatter plot figure and the table data
 
     @app.callback(
-        Output('heatmap3', 'figure'),
-        [Input('store-df-original3', 'data')]
+        [Output('table-container', 'style'),
+         Output('download-excel', 'style')],
+        [Input('toggle-table', 'n_clicks'),
+         Input('threshold-slider', 'value')],
+        [State('table-container', 'style'),
+         State('download-excel', 'style')]
     )
-    def update_heatmap3(data):
-        df = pd.DataFrame(data)
-        return create_heatmap_data(df)
-
-    @app.callback(
-        [Output('scatter1', 'figure'),
-         Output('table1', 'data')],  # Add the table container as an output
-        [Input('threshold-slider1', 'value')],
-        [State('store-df-original1', 'data')]
-    )
-    def update_scatter1(threshold, data):
-        df = pd.DataFrame(data)
-        scatter1_df = calculate_occupation_percentage(df, threshold)
-        x_range1 = [scatter1_df['frecuencia_hz'].min(), scatter1_df['frecuencia_hz'].max()]
-        scatter1_fig = create_scatter_plot(scatter1_df, x_range1, threshold)
-        scatter1_df.columns = ['Frecuencia (Hz)', 'Ocupación (%)']
-        table1_data = scatter1_df.to_dict('records')  # Convert the dataframe to a dictionary
-        return scatter1_fig, table1_data  # Return the scatter plot figure and the table data
-
-    @app.callback(
-        [Output('scatter2', 'figure'),
-         Output('table2', 'data')],  # Add the table container as an output
-        [Input('threshold-slider2', 'value')],
-        [State('store-df-original2', 'data')]
-    )
-    def update_scatter2(threshold, data):
-        df = pd.DataFrame(data)
-        scatter2_df = calculate_occupation_percentage(df, threshold)
-        x_range2 = [scatter2_df['frecuencia_hz'].min(), scatter2_df['frecuencia_hz'].max()]
-        scatter2_fig = create_scatter_plot(scatter2_df, x_range2, threshold)
-        scatter2_df.columns = ['Frecuencia (Hz)', 'Ocupación (%)']
-        table2_data = scatter2_df.to_dict('records')  # Convert the dataframe to a dictionary
-        return scatter2_fig, table2_data  # Return the scatter plot figure and the table data
-
-    @app.callback(
-        [Output('scatter3', 'figure'),
-         Output('table3', 'data')],  # Add the table container as an output
-        [Input('threshold-slider3', 'value')],
-        [State('store-df-original3', 'data')]
-    )
-    def update_scatter3(threshold, data):
-        df = pd.DataFrame(data)
-        scatter3_df = calculate_occupation_percentage(df, threshold)
-        x_range3 = [scatter3_df['frecuencia_hz'].min(), scatter3_df['frecuencia_hz'].max()]
-        scatter3_fig = create_scatter_plot(scatter3_df, x_range3, threshold)
-        scatter3_df.columns = ['Frecuencia (Hz)', 'Ocupación (%)']
-        table3_data = scatter3_df.to_dict('records')  # Convert the dataframe to a dictionary
-        return scatter3_fig, table3_data  # Return the scatter plot figure and the table data
-
-    @app.callback(
-        [Output('table1-container', 'style'),
-         Output('download-excel1', 'style')],
-        [Input('toggle-table1', 'n_clicks'),
-         Input('threshold-slider1', 'value')],
-        [State('table1-container', 'style'),
-         State('download-excel1', 'style')]
-    )
-    def toggle_table1(n_clicks, threshold, current_table_style, current_download_style):
+    def toggle_table(n_clicks, threshold, current_table_style, current_download_style):
         if n_clicks and threshold is not None:
             if current_table_style.get('display') == 'none':
                 return {'overflowX': 'auto', 'maxHeight': '300px'}, {'display': 'inline-block'}
@@ -171,78 +133,18 @@ def register_callbacks():
         return current_table_style, current_download_style
 
     @app.callback(
-        Output("download-data1", "data"),
-        [Input("download-excel1", "n_clicks")],
-        [State('table1', 'data')]
+        Output("download-data", "data"),
+        [Input("download-excel", "n_clicks")],
+        [State('table', 'data')]
     )
-    def download_excel1(n_clicks, data):
+    def download_excel(n_clicks, data):
         if n_clicks:
             df = pd.DataFrame(data)
             excel_file = io.BytesIO()
             with pd.ExcelWriter(excel_file, engine='openpyxl') as writer:
-                df.to_excel(writer, sheet_name='703-733MHz')
+                df.to_excel(writer, sheet_name='Data')
             excel_file.seek(0)
-            return dcc.send_bytes(excel_file.read(), filename="Data_703-733MHz.xlsx")
-
-    @app.callback(
-        [Output('table2-container', 'style'),
-         Output('download-excel2', 'style')],
-        [Input('toggle-table2', 'n_clicks'),
-         Input('threshold-slider2', 'value')],
-        [State('table2-container', 'style'),
-         State('download-excel2', 'style')]
-    )
-    def toggle_table2(n_clicks, threshold, current_table_style, current_download_style):
-        if n_clicks and threshold is not None:
-            if current_table_style.get('display') == 'none':
-                return {'overflowX': 'auto', 'maxHeight': '300px'}, {'display': 'inline-block'}
-            else:
-                return {'display': 'none'}, current_download_style
-        return current_table_style, current_download_style
-
-    @app.callback(
-        Output("download-data2", "data"),
-        [Input("download-excel2", "n_clicks")],
-        [State('table2', 'data')]
-    )
-    def download_excel2(n_clicks, data):
-        if n_clicks:
-            df = pd.DataFrame(data)
-            excel_file = io.BytesIO()
-            with pd.ExcelWriter(excel_file, engine='openpyxl') as writer:
-                df.to_excel(writer, sheet_name='758-788MHz')
-            excel_file.seek(0)
-            return dcc.send_bytes(excel_file.read(), filename="Data_758-788MHz.xlsx")
-
-    @app.callback(
-        [Output('table3-container', 'style'),
-         Output('download-excel3', 'style')],
-        [Input('toggle-table3', 'n_clicks'),
-         Input('threshold-slider3', 'value')],
-        [State('table3-container', 'style'),
-         State('download-excel3', 'style')]
-    )
-    def toggle_table3(n_clicks, threshold, current_table_style, current_download_style):
-        if n_clicks and threshold is not None:
-            if current_table_style.get('display') == 'none':
-                return {'overflowX': 'auto', 'maxHeight': '300px'}, {'display': 'inline-block'}
-            else:
-                return {'display': 'none'}, current_download_style
-        return current_table_style, current_download_style
-
-    @app.callback(
-        Output("download-data3", "data"),
-        [Input("download-excel3", "n_clicks")],
-        [State('table3', 'data')]
-    )
-    def download_excel3(n_clicks, data):
-        if n_clicks:
-            df = pd.DataFrame(data)
-            excel_file = io.BytesIO()
-            with pd.ExcelWriter(excel_file, engine='openpyxl') as writer:
-                df.to_excel(writer, sheet_name='2500-2690MHz')
-            excel_file.seek(0)
-            return dcc.send_bytes(excel_file.read(), filename="Data_2500-2690MHz.xlsx")
+            return dcc.send_bytes(excel_file.read(), filename="Data.xlsx")
 
 
 async def customize_data_async(request):
@@ -255,23 +157,21 @@ def update_content(request):
     fecha_inicio = request.GET.get('start_date')
     fecha_fin = request.GET.get('end_date')
     ciudad = request.GET.get('city')
+    start_freq = request.GET.get('start_freq')
+    end_freq = request.GET.get('end_freq')
 
-    if not all([fecha_inicio, fecha_fin, ciudad]):
-        return {}, {}, {}, {}, {}, {}, "Selecciona una fecha inicial, una fecha final, una ciudad y un umbral"
+    if not all([fecha_inicio, fecha_fin, ciudad, start_freq, end_freq]):
+        return {}, {}, "Selecciona una fecha inicial, una fecha final, una ciudad, una frecuencia inicial y una frecuencia final"
 
     data = asyncio.run(customize_data_async(request))
 
-    df_original1, df_original2, df_original3 = data[:3]
-    df_clean1, df_clean2, df_clean3 = data[3:]
+    df_original, df_clean = data
 
-    df_original1 = convert_timestamps_to_strings(df_original1)
-    df_original2 = convert_timestamps_to_strings(df_original2)
-    df_original3 = convert_timestamps_to_strings(df_original3)
+    df_original = convert_timestamps_to_strings(df_original)
 
-    tabs_layout = create_heatmap_layout(df_original1, df_original2, df_original3)
+    tabs_layout = create_heatmap_layout(df_original)
 
-    return df_original1.to_dict('records'), df_original2.to_dict('records'), df_original3.to_dict('records'), \
-        df_clean1.to_dict('records'), df_clean2.to_dict('records'), df_clean3.to_dict('records'), tabs_layout
+    return df_original.to_dict('records'), df_clean.to_dict('records'), tabs_layout
 
 
 register_callbacks()

@@ -212,13 +212,12 @@ def create_scatter_plot(df: pd.DataFrame, x_range=None, threshold=None) -> go.Fi
     )
 
 
-def create_heatmap_layout(df_original1: pd.DataFrame, df_original2: pd.DataFrame,
-                          df_original3: pd.DataFrame) -> dcc.Tabs:
+def create_heatmap_layout(df_original: pd.DataFrame) -> dcc.Tabs:
     tabs_layout = dcc.Tabs(id='tabs-container', children=[
-        dcc.Tab(label='Banda de frecuencias: 703-733 MHz', children=[
-            dcc.Graph(id='heatmap1', figure=create_heatmap_data(df_original1)),
+        dcc.Tab(label='Banda de frecuencias seleccionada', children=[
+            dcc.Graph(id='heatmap', figure=create_heatmap_data(df_original)),
             dcc.Slider(
-                id='threshold-slider1',
+                id='threshold-slider',
                 min=0,
                 max=100,
                 step=1,
@@ -226,50 +225,12 @@ def create_heatmap_layout(df_original1: pd.DataFrame, df_original2: pd.DataFrame
                 marks={i: f"{str(i)} dBµV/m" for i in range(0, 101, 10)},
                 tooltip={"placement": "bottom", "always_visible": True},
             ),
-            dcc.Graph(id='scatter1'),
-            html.Button("Mostrar Datos Procesados", id="toggle-table1", className="mr-2"),
-            html.Div(id='table1-container', children=[
-                html.Button("Descargar Excel", id="download-excel1", style={'display': 'none'}),
-                dcc.Download(id="download-data1"),
-                create_dash_datatable('table1'),
-            ], style={'display': 'none'}),
-        ]),
-        dcc.Tab(label='Banda de frecuencias: 758-788 MHz', children=[
-            dcc.Graph(id='heatmap2', figure=create_heatmap_data(df_original2)),
-            dcc.Slider(
-                id='threshold-slider2',
-                min=0,
-                max=100,
-                step=1,
-                value=None,
-                marks={i: f"{str(i)} dBµV/m" for i in range(0, 101, 10)},
-                tooltip={"placement": "bottom", "always_visible": True},
-            ),
-            dcc.Graph(id='scatter2'),
-            html.Button("Mostrar Datos Procesados", id="toggle-table2", className="mr-2"),
-            html.Div(id='table2-container', children=[
-                html.Button("Descargar Excel", id="download-excel2", style={'display': 'none'}),
-                dcc.Download(id="download-data2"),
-                create_dash_datatable('table2'),
-            ], style={'display': 'none'}),
-        ]),
-        dcc.Tab(label='Banda de frecuencias: 2500-2690 MHz', children=[
-            dcc.Graph(id='heatmap3', figure=create_heatmap_data(df_original3)),
-            dcc.Slider(
-                id='threshold-slider3',
-                min=0,
-                max=100,
-                step=1,
-                value=None,
-                marks={i: f"{str(i)} dBµV/m" for i in range(0, 101, 10)},
-                tooltip={"placement": "bottom", "always_visible": True},
-            ),
-            dcc.Graph(id='scatter3'),
-            html.Button("Mostrar Datos Procesados", id="toggle-table3", className="mr-2"),
-            html.Div(id='table3-container', children=[
-                html.Button("Descargar Excel", id="download-excel3", style={'display': 'none'}),
-                dcc.Download(id="download-data3"),
-                create_dash_datatable('table3'),
+            dcc.Graph(id='scatter'),
+            html.Button("Mostrar Datos Procesados", id="toggle-table", className="mr-2"),
+            html.Div(id='table-container', children=[
+                html.Button("Descargar Excel", id="download-excel", style={'display': 'none'}),
+                dcc.Download(id="download-data"),
+                create_dash_datatable('table'),
             ], style={'display': 'none'}),
         ]),
     ])
