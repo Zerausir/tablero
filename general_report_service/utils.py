@@ -20,9 +20,13 @@ def convert_end_date(date_time: str) -> datetime.datetime:
     Returns:
         datetime.datetime: Corresponding datetime object.
     """
-    datetime_obj = datetime.datetime.strptime(date_time, '%Y-%m-%d')
-    datetime_obj = datetime_obj.replace(hour=23, minute=59, second=59)
-    return datetime_obj
+    try:
+        datetime_obj = datetime.datetime.strptime(date_time, '%Y-%m-%d')
+        datetime_obj = datetime_obj.replace(hour=23, minute=59, second=59)
+        return datetime_obj
+    except Exception as e:
+        # Log the error and raise a custom exception
+        raise Exception("Error converting end date: {}".format(e))
 
 
 def convert_start_date(date_time: str) -> datetime.datetime:
@@ -35,12 +39,25 @@ def convert_start_date(date_time: str) -> datetime.datetime:
     Returns:
         datetime.datetime: Corresponding datetime object.
     """
-    datetime_obj = datetime.datetime.strptime(date_time, '%Y-%m-%d')
-    datetime_obj = datetime_obj.replace(hour=0, minute=0, second=1)
-    return datetime_obj
+    try:
+        datetime_obj = datetime.datetime.strptime(date_time, '%Y-%m-%d')
+        datetime_obj = datetime_obj.replace(hour=0, minute=0, second=1)
+        return datetime_obj
+    except Exception as e:
+        # Log the error and raise a custom exception
+        raise Exception("Error converting start date: {}".format(e))
 
 
 def convert_timestamps_to_strings(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Convert timestamp columns in a DataFrame to strings in the format 'YYYY-MM-DD'.
+
+    Args:
+        df (pandas.DataFrame): The DataFrame to convert.
+
+    Returns:
+        pandas.DataFrame: The DataFrame with timestamp columns converted to strings.
+    """
     date_columns = ['Tiempo', 'Inicio Autorización', 'Fin Autorización']
     date_format = '%Y-%m-%d'  # Replace with your actual date format
 
@@ -536,7 +553,7 @@ def update_station_plot_am(selected_frequencies: list, stored_data: list, autori
                             text=f'Inicio: {mark_time}',
                             showarrow=True,
                             arrowhead=1,
-                            ax=0, ay=-40,  # Arrow direction
+                            ax=0, ay=-60,  # Arrow direction
                             bgcolor="white",  # Background color of the text box
                             bordercolor="black",  # Border color of the text box
                             font=dict(color="black")  # Text font color
@@ -553,7 +570,7 @@ def update_station_plot_am(selected_frequencies: list, stored_data: list, autori
                             text=f'Fin: {mark_time}',
                             showarrow=True,
                             arrowhead=1,
-                            ax=0, ay=-40,  # Arrow direction
+                            ax=0, ay=-30,  # Arrow direction
                             bgcolor="white",  # Background color of the text box
                             bordercolor="black",  # Border color of the text box
                             font=dict(color="black")  # Text font color
@@ -779,7 +796,7 @@ def update_station_plot_fm(selected_frequencies: list, stored_data: list, autori
                             text=f'Inicio: {mark_time}',
                             showarrow=True,
                             arrowhead=1,
-                            ax=0, ay=-40,  # Arrow direction
+                            ax=0, ay=-60,  # Arrow direction
                             bgcolor="white",  # Background color of the text box
                             bordercolor="black",  # Border color of the text box
                             font=dict(color="black")  # Text font color
@@ -796,7 +813,7 @@ def update_station_plot_fm(selected_frequencies: list, stored_data: list, autori
                             text=f'Fin: {mark_time}',
                             showarrow=True,
                             arrowhead=1,
-                            ax=0, ay=-40,  # Arrow direction
+                            ax=0, ay=-30,  # Arrow direction
                             bgcolor="white",  # Background color of the text box
                             bordercolor="black",  # Border color of the text box
                             font=dict(color="black")  # Text font color

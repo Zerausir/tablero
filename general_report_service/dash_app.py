@@ -1,7 +1,7 @@
 import json
-
 from dash import dcc, html, Input, Output
 from django.conf import settings
+from django.http import HttpRequest, QueryDict
 from django_plotly_dash import DjangoDash
 
 from .utils import convert_timestamps_to_strings, create_heatmap_layout, update_table, update_heatmap, \
@@ -89,22 +89,33 @@ def register_callbacks():
             return {}, {}, {}, {}, {}, {}, "Selecciona una fecha inicial, una fecha final y una ciudad"
 
         if fecha_inicio is not None and fecha_fin is not None and ciudad is not None:
-            selected_options = {
-                'start_date': fecha_inicio,
-                'end_date': fecha_fin,
-                'city': ciudad,
-            }
-            df_original1, df_original2, df_original3 = customize_data(selected_options)[:3]
-            df_original1 = convert_timestamps_to_strings(df_original1)
-            df_original2 = convert_timestamps_to_strings(df_original2)
-            df_original3 = convert_timestamps_to_strings(df_original3)
+            request = HttpRequest()
+            request.GET = QueryDict(mutable=True)
+            request.GET['start_date'] = fecha_inicio
+            request.GET['end_date'] = fecha_fin
+            request.GET['city'] = ciudad
 
-            df_clean1, df_clean2, df_clean3 = customize_data(selected_options)[3:]
+            try:
+                df_original1, df_original2, df_original3 = customize_data(request)[:3]
+                df_original1 = convert_timestamps_to_strings(df_original1)
+                df_original2 = convert_timestamps_to_strings(df_original2)
+                df_original3 = convert_timestamps_to_strings(df_original3)
 
-            tabs_layout = create_heatmap_layout(df_original1, df_original2, df_original3)
+                df_clean1, df_clean2, df_clean3 = customize_data(request)[3:]
 
-            return df_original1.to_dict('records'), df_original2.to_dict('records'), df_original3.to_dict('records'), \
-                df_clean1.to_dict('records'), df_clean2.to_dict('records'), df_clean3.to_dict('records'), tabs_layout
+                if df_original1.empty and df_original2.empty and df_original3.empty:
+                    no_data_message = "No data found for the given parameters."
+                    tabs_layout = html.Div()
+                else:
+                    no_data_message = ""
+                    tabs_layout = create_heatmap_layout(df_original1, df_original2, df_original3)
+
+                return df_original1.to_dict('records'), df_original2.to_dict('records'), df_original3.to_dict(
+                    'records'), \
+                    df_clean1.to_dict('records'), df_clean2.to_dict('records'), df_clean3.to_dict('records'), html.Div(
+                    [tabs_layout, html.Div(no_data_message)])
+            except Exception as e:
+                return {}, {}, {}, {}, {}, {}, f"Error al obtener los datos: {str(e)}"
 
     @app.callback(
         Output('table1', 'data'),
