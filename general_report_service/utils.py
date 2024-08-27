@@ -270,21 +270,24 @@ def create_heatmap_layout(df_original1: pd.DataFrame, df_original2: pd.DataFrame
 
     tabs_layout = dcc.Tabs(id='tabs-container', children=[
         dcc.Tab(label='Radiodifusión FM', children=[
-            html.Div(dropdown1, style={'marginBottom': '10px'}),
             table1,
             dcc.Graph(id='heatmap1'),
+            html.Div(dropdown1, style={'marginBottom': '10px'}),
+            html.Div(id='new-heatmap-container-fm'),  # New container for the new heatmap
             html.Div(id='station-plots-container-fm'),  # Unique container for FM
         ]),
         dcc.Tab(label='Televisión', children=[
-            html.Div(dropdown2, style={'marginBottom': '10px'}),
             table2,
             dcc.Graph(id='heatmap2'),
+            html.Div(dropdown2, style={'marginBottom': '10px'}),
+            html.Div(id='new-heatmap-container-tv'),  # New container for the new heatmap
             html.Div(id='station-plots-container-tv'),  # Unique container for TV
         ]),
         dcc.Tab(label='Radiodifusión AM', children=[
-            html.Div(dropdown3, style={'marginBottom': '10px'}),
             table3,
             dcc.Graph(id='heatmap3'),
+            html.Div(dropdown3, style={'marginBottom': '10px'}),
+            html.Div(id='new-heatmap-container-am'),  # New container for the new heatmap
             html.Div(id='station-plots-container-am'),  # Unique container for AM
         ]),
     ])
@@ -457,7 +460,7 @@ def update_station_plot_am(selected_frequencies: list, stored_data: list, autori
         def valor(row):
             """function to return a specific value if the value in every row of the column 'level' meet the
             condition"""
-            if row['level'] == '-':
+            if row['level'] == 0:
                 return 120
             return 0
 
@@ -686,7 +689,7 @@ def update_station_plot_fm(selected_frequencies: list, stored_data: list, autori
         def valor(row):
             """function to return a specific value if the value in every row of the column 'level' meet the
             condition"""
-            if row['level'] == '-':
+            if row['level'] == 0:
                 return 120
             return 0
 
@@ -915,7 +918,7 @@ def update_station_plot_tv(selected_frequencies: list, stored_data: list, autori
         def valor(row):
             """function to return a specific value if the value in every row of the column 'level' meet the
             condition"""
-            if row['level'] == '-':
+            if row['level'] == 0:
                 return 120
             return 0
 
