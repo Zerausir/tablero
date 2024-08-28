@@ -364,7 +364,7 @@ def update_station_plot_am(selected_frequencies: list, stored_data: list, autori
         df_filtered = df_filtered.rename(
             columns={'Frecuencia (Hz)': 'freq', 'Estación': 'est', 'Level (dBµV/m)': 'level',
                      'Bandwidth (Hz)': 'bandwidth', 'Inicio Autorización': 'Fecha_inicio',
-                     'Fin Autorización': 'Fecha_fin'})
+                     'Fin Autorización': 'Fecha_fin', 'Tipo': 'tipo'})
         df_filtered['Fecha_inicio'] = df_filtered['Fecha_inicio'].fillna(0)
         df_filtered['Fecha_fin'] = df_filtered['Fecha_fin'].fillna(0)
         nombre = df_filtered['est'].iloc[0]
@@ -409,9 +409,18 @@ def update_station_plot_am(selected_frequencies: list, stored_data: list, autori
         def aut(row):
             """function to return a specific value if the value in every row of the column 'level' meet the
             condition"""
-            if row['Fecha_fin'] != 0 and row['level'] == 0:
+            if row['Fecha_fin'] != 0 and row['level'] == 0 and row['tipo'] == 'S':
                 return 0
-            elif row['Fecha_fin'] != 0 and row['level'] != 0:
+            elif row['Fecha_fin'] != 0 and row['level'] != 0 and row['tipo'] == 'S':
+                return row['level']
+            return 0
+
+        def autbp(row):
+            """function to return a specific value if the value in every row of the column 'level' meet the
+            condition"""
+            if row['Fecha_fin'] != 0 and row['level'] == 0 and row['tipo'] == 'BP':
+                return 0
+            elif row['Fecha_fin'] != 0 and row['level'] != 0 and row['tipo'] == 'BP':
                 return row['level']
             return 0
 
@@ -421,6 +430,7 @@ def update_station_plot_am(selected_frequencies: list, stored_data: list, autori
         df_filtered['plus'] = df_filtered.apply(lambda row: plus(row), axis=1)
         df_filtered['valor'] = df_filtered.apply(lambda row: valor(row), axis=1)
         df_filtered['aut'] = df_filtered.apply(lambda row: aut(row), axis=1)
+        df_filtered['autbp'] = df_filtered.apply(lambda row: autbp(row), axis=1)
         # Creating the plot
         fig = go.Figure()
 
@@ -429,7 +439,8 @@ def update_station_plot_am(selected_frequencies: list, stored_data: list, autori
             'Bet': '#FFD700',  # Example color, similar to 'Set3_r'
             'Minus': '#ff9999',  # Example color, similar to 'Pastel1'
             'Valor': '#beaed4',  # Example color, similar to 'Paired'
-            'Autorizaciones': '#386cb0'  # Example color, similar to 'Set2_r'
+            'Autorizaciones': '#386cb0',
+            'Autorizacionesbp': '#23b4e8'  # Example color, similar to 'Set2_r'
         }
 
         # Adding area plots with custom colors
@@ -446,12 +457,17 @@ def update_station_plot_am(selected_frequencies: list, stored_data: list, autori
                                  name='No se dispone de mediciones del sistema SACER.',
                                  line=dict(color=colors['Valor'])))
 
+        Autorizaciones = 'Dispone de autorización para suspensión de emisiones.'
+        Autorizacionesbp = 'Dispone de autorización para operación con baja potencia.'
+
         # Use the autorizations_selected flag to determine whether to plot 'autorizaciones' data
         if autorizations_selected:
             fig.add_trace(
-                go.Scatter(x=df_filtered['Tiempo'], y=df_filtered['aut'], fill='tozeroy',
-                           name='Dispone de autorización para suspensión de emisiones y/o operación con baja potencia.',
+                go.Scatter(x=df_filtered['Tiempo'], y=df_filtered['aut'], fill='tozeroy', name=Autorizaciones,
                            line=dict(color=colors['Autorizaciones'])))
+            fig.add_trace(
+                go.Scatter(x=df_filtered['Tiempo'], y=df_filtered['autbp'], fill='tozeroy', name=Autorizacionesbp,
+                           line=dict(color=colors['Autorizacionesbp'])))
 
         # Setting plot layout
         tick_labels = df_filtered['Tiempo'].unique().tolist()
@@ -563,7 +579,7 @@ def update_station_plot_fm(selected_frequencies: list, stored_data: list, autori
         df_filtered = df_filtered.rename(
             columns={'Frecuencia (Hz)': 'freq', 'Estación': 'est', 'Potencia': 'pot', 'BW Asignado': 'bw',
                      'Level (dBµV/m)': 'level', 'Bandwidth (Hz)': 'bandwidth', 'Inicio Autorización': 'Fecha_inicio',
-                     'Fin Autorización': 'Fecha_fin'})
+                     'Fin Autorización': 'Fecha_fin', 'Tipo': 'tipo'})
         df_filtered['Fecha_inicio'] = df_filtered['Fecha_inicio'].fillna(0)
         df_filtered['Fecha_fin'] = df_filtered['Fecha_fin'].fillna(0)
         nombre = df_filtered['est'].iloc[0]
@@ -638,9 +654,18 @@ def update_station_plot_fm(selected_frequencies: list, stored_data: list, autori
         def aut(row):
             """function to return a specific value if the value in every row of the column 'level' meet the
             condition"""
-            if row['Fecha_fin'] != 0 and row['level'] == 0:
+            if row['Fecha_fin'] != 0 and row['level'] == 0 and row['tipo'] == 'S':
                 return 0
-            elif row['Fecha_fin'] != 0 and row['level'] != 0:
+            elif row['Fecha_fin'] != 0 and row['level'] != 0 and row['tipo'] == 'S':
+                return row['level']
+            return 0
+
+        def autbp(row):
+            """function to return a specific value if the value in every row of the column 'level' meet the
+            condition"""
+            if row['Fecha_fin'] != 0 and row['level'] == 0 and row['tipo'] == 'BP':
+                return 0
+            elif row['Fecha_fin'] != 0 and row['level'] != 0 and row['tipo'] == 'BP':
                 return row['level']
             return 0
 
@@ -650,6 +675,7 @@ def update_station_plot_fm(selected_frequencies: list, stored_data: list, autori
         df_filtered['plus'] = df_filtered.apply(lambda row: plus(row), axis=1)
         df_filtered['valor'] = df_filtered.apply(lambda row: valor(row), axis=1)
         df_filtered['aut'] = df_filtered.apply(lambda row: aut(row), axis=1)
+        df_filtered['autbp'] = df_filtered.apply(lambda row: autbp(row), axis=1)
         # Creating the plot
         fig = go.Figure()
 
@@ -658,7 +684,8 @@ def update_station_plot_fm(selected_frequencies: list, stored_data: list, autori
             'Bet': '#FFD700',  # Example color, similar to 'Set3_r'
             'Minus': '#ff9999',  # Example color, similar to 'Pastel1'
             'Valor': '#beaed4',  # Example color, similar to 'Paired'
-            'Autorizaciones': '#386cb0'  # Example color, similar to 'Set2_r'
+            'Autorizaciones': '#386cb0',  # Example color, similar to 'Set2_r',
+            'Autorizacionesbp': '#23b4e8'  # Example color, similar to 'Set2_r',
         }
 
         if pot == 0 and bw == 220:
@@ -689,12 +716,17 @@ def update_station_plot_fm(selected_frequencies: list, stored_data: list, autori
                                  name='No se dispone de mediciones del sistema SACER.',
                                  line=dict(color=colors['Valor'])))
 
+        Autorizaciones = 'Dispone de autorización para suspensión de emisiones.'
+        Autorizacionesbp = 'Dispone de autorización para operación con baja potencia.'
+
         # Use the autorizations_selected flag to determine whether to plot 'autorizaciones' data
         if autorizations_selected:
             fig.add_trace(
-                go.Scatter(x=df_filtered['Tiempo'], y=df_filtered['aut'], fill='tozeroy',
-                           name='Dispone de autorización para suspensión de emisiones y/o operación con baja potencia.',
+                go.Scatter(x=df_filtered['Tiempo'], y=df_filtered['aut'], fill='tozeroy', name=Autorizaciones,
                            line=dict(color=colors['Autorizaciones'])))
+            fig.add_trace(
+                go.Scatter(x=df_filtered['Tiempo'], y=df_filtered['autbp'], fill='tozeroy', name=Autorizacionesbp,
+                           line=dict(color=colors['Autorizacionesbp'])))
 
         # Setting plot layout
         tick_labels = df_filtered['Tiempo'].unique().tolist()
@@ -805,7 +837,8 @@ def update_station_plot_tv(selected_frequencies: list, stored_data: list, autori
         df_filtered = df[df['Frecuencia (Hz)'] == frequency]
         df_filtered = df_filtered.rename(
             columns={'Frecuencia (Hz)': 'freq', 'Estación': 'est', 'Canal (Número)': 'canal', 'Analógico/Digital': 'ad',
-                     'Level (dBµV/m)': 'level', 'Inicio Autorización': 'Fecha_inicio', 'Fin Autorización': 'Fecha_fin'})
+                     'Level (dBµV/m)': 'level', 'Inicio Autorización': 'Fecha_inicio', 'Fin Autorización': 'Fecha_fin',
+                     'Tipo': 'tipo'})
         df_filtered['Fecha_inicio'] = df_filtered['Fecha_inicio'].fillna(0)
         df_filtered['Fecha_fin'] = df_filtered['Fecha_fin'].fillna(0)
         nombre = df_filtered['est'].iloc[0]
@@ -867,9 +900,18 @@ def update_station_plot_tv(selected_frequencies: list, stored_data: list, autori
         def aut(row):
             """function to return a specific value if the value in every row of the column 'level' meet the
             condition"""
-            if row['Fecha_fin'] != 0 and row['level'] == 0:
+            if row['Fecha_fin'] != 0 and row['level'] == 0 and row['tipo'] == 'S':
                 return 0
-            elif row['Fecha_fin'] != 0 and row['level'] != 0:
+            elif row['Fecha_fin'] != 0 and row['level'] != 0 and row['tipo'] == 'S':
+                return row['level']
+            return 0
+
+        def autbp(row):
+            """function to return a specific value if the value in every row of the column 'level' meet the
+            condition"""
+            if row['Fecha_fin'] != 0 and row['level'] == 0 and row['tipo'] == 'BP':
+                return 0
+            elif row['Fecha_fin'] != 0 and row['level'] != 0 and row['tipo'] == 'BP':
                 return row['level']
             return 0
 
@@ -879,6 +921,7 @@ def update_station_plot_tv(selected_frequencies: list, stored_data: list, autori
         df_filtered['plus'] = df_filtered.apply(lambda row: plus(row), axis=1)
         df_filtered['valor'] = df_filtered.apply(lambda row: valor(row), axis=1)
         df_filtered['aut'] = df_filtered.apply(lambda row: aut(row), axis=1)
+        df_filtered['autbp'] = df_filtered.apply(lambda row: autbp(row), axis=1)
         # Creating the plot
         fig = go.Figure()
 
@@ -887,7 +930,8 @@ def update_station_plot_tv(selected_frequencies: list, stored_data: list, autori
             'Bet': '#FFD700',  # Example color, similar to 'Set3_r'
             'Minus': '#ff9999',  # Example color, similar to 'Pastel1'
             'Valor': '#beaed4',  # Example color, similar to 'Paired'
-            'Autorizaciones': '#386cb0'  # Example color, similar to 'Set2_r'
+            'Autorizaciones': '#386cb0',  # Example color, similar to 'Set2_r',
+            'Autorizacionesbp': '#23b4e8'  # Example color, similar to 'Set2_r',
         }
 
         if df_filtered['freq'].iloc[0] >= 54000000 and df_filtered['freq'].iloc[0] <= 88000000 and andig == 0:
@@ -908,7 +952,8 @@ def update_station_plot_tv(selected_frequencies: list, stored_data: list, autori
             Minus = f'Los valores de campo eléctrico diario son inferiores al límite de área de cobertura secundario. (Frecuencia {frequency} Hz: < 30 dBuV/m).'
 
         Valor = 'No se dispone de mediciones del sistema SACER.'
-        Autorizaciones = 'Dispone de autorización para suspensión de emisiones y/o operación con baja potencia.'
+        Autorizaciones = 'Dispone de autorización para suspensión de emisiones.'
+        Autorizacionesbp = 'Dispone de autorización para operación con baja potencia.'
 
         # Adding area plots with custom colors
         fig.add_trace(go.Scatter(x=df_filtered['Tiempo'], y=df_filtered['plus'], fill='tozeroy', name=Plus,
@@ -925,6 +970,9 @@ def update_station_plot_tv(selected_frequencies: list, stored_data: list, autori
             fig.add_trace(
                 go.Scatter(x=df_filtered['Tiempo'], y=df_filtered['aut'], fill='tozeroy', name=Autorizaciones,
                            line=dict(color=colors['Autorizaciones'])))
+            fig.add_trace(
+                go.Scatter(x=df_filtered['Tiempo'], y=df_filtered['autbp'], fill='tozeroy', name=Autorizacionesbp,
+                           line=dict(color=colors['Autorizacionesbp'])))
 
         # Setting plot layout
         tick_labels = df_filtered['Tiempo'].unique().tolist()
