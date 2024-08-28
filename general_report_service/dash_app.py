@@ -1,11 +1,15 @@
 import json
-from dash import dcc, html, Input, Output
+import plotly.graph_objs as go
+from dash import dcc, html, Input, Output, State
 from django.conf import settings
 from django.http import HttpRequest, QueryDict
 from django_plotly_dash import DjangoDash
+import pandas as pd
+import dash
 
-from .utils import convert_timestamps_to_strings, create_heatmap_layout, update_table, update_heatmap, \
-    update_station_plot_fm, update_station_plot_tv, update_station_plot_am
+from .utils import (convert_timestamps_to_strings, create_heatmap_layout, update_heatmap, update_station_plot_fm,
+                    update_station_plot_tv, update_station_plot_am, create_heatmap_data, create_dash_datatable,
+                    filter_dataframe_by_frequencies)
 from .services import customize_data
 
 app = DjangoDash(
@@ -43,7 +47,7 @@ def define_app_layout():
             type="default",
             children=[
                 html.Div(
-                    id='data-container',  # This is the placeholder for the heatmaps and tables.
+                    id='data-container',
                     style={'height': '70vh', 'overflowY': 'auto'}
                 )
             ],
@@ -55,16 +59,23 @@ def define_app_layout():
         dcc.Store(id='store-df-original4'),
         dcc.Store(id='store-df-original5'),
         dcc.Store(id='store-df-original6'),
-
         html.Div(id='station-plots-container'),
-
+        html.Button('Mostrar/Ocultar resultados', id='toggle-results-button', n_clicks=0),
+        html.Div([
+            dcc.Loading(
+                id="loading-table",
+                type="default",
+                children=[html.Div(id='table-container')]
+            )
+        ]),
+        dcc.Store(id='current-tab', data='tab-1'),
     ], style={
         'display': 'flex',
         'flex-direction': 'column',
-        'justify-content': 'flex-start',  # Aligns children to the start of the container
-        'align-items': 'stretch',  # Stretches children to fill the container width
-        'min-height': '100vh',  # Ensures at least the height of the viewport
-        'height': 'auto',  # Allows the container to grow beyond the viewport height if needed
+        'justify-content': 'flex-start',
+        'align-items': 'stretch',
+        'min-height': '100vh',
+        'height': 'auto',
     })
 
 
@@ -76,10 +87,10 @@ def register_callbacks():
         [Output('store-df-original1', 'data'),
          Output('store-df-original2', 'data'),
          Output('store-df-original3', 'data'),
-         Output('store-df-original4', 'data'),  # Store for df_clean1
-         Output('store-df-original5', 'data'),  # Store for df_clean2
-         Output('store-df-original6', 'data'),  # Store for df_clean3
-         Output('data-container', 'children')],  # This will contain both tables and heatmaps
+         Output('store-df-original4', 'data'),
+         Output('store-df-original5', 'data'),
+         Output('store-df-original6', 'data'),
+         Output('data-container', 'children')],
         [Input('date-picker-range', 'start_date'),
          Input('date-picker-range', 'end_date'),
          Input('city-dropdown', 'value')]
@@ -110,60 +121,140 @@ def register_callbacks():
                     no_data_message = ""
                     tabs_layout = create_heatmap_layout(df_original1, df_original2, df_original3)
 
-                return df_original1.to_dict('records'), df_original2.to_dict('records'), df_original3.to_dict(
-                    'records'), \
-                    df_clean1.to_dict('records'), df_clean2.to_dict('records'), df_clean3.to_dict('records'), html.Div(
-                    [tabs_layout, html.Div(no_data_message)])
+                return (df_original1.to_dict('records'), df_original2.to_dict('records'),
+                        df_original3.to_dict('records'), df_clean1.to_dict('records'),
+                        df_clean2.to_dict('records'), df_clean3.to_dict('records'),
+                        html.Div([tabs_layout, html.Div(no_data_message)]))
             except Exception as e:
                 return {}, {}, {}, {}, {}, {}, f"Error al obtener los datos: {str(e)}"
 
     @app.callback(
-        Output('table1', 'data'),
-        [Input('frequency-dropdown1', 'value'),
-         Input('store-df-original1', 'data')]
+        Output('table-container', 'children'),
+        [Input('toggle-results-button', 'n_clicks'),
+         Input('frequency-dropdown1', 'value'),
+         Input('frequency-dropdown2', 'value'),
+         Input('frequency-dropdown3', 'value'),
+         Input('current-tab', 'data')],
+        [State('store-df-original1', 'data'),
+         State('store-df-original2', 'data'),
+         State('store-df-original3', 'data'),
+         State('table-container', 'children')]
     )
-    def update_table1(selected_frequencies1, stored_data1):
-        return update_table(selected_frequencies1, stored_data1, 'table1')
+    def update_table_visibility(n_clicks, freq1, freq2, freq3, current_tab, data1, data2, data3, current_table):
+        ctx = dash.callback_context
+        button_id = ctx.triggered[0]['prop_id'].split('.')[0]
+
+        if button_id == 'toggle-results-button':
+            if current_table is None or (isinstance(current_table, list) and len(current_table) == 0):
+                # Si la tabla está oculta, la mostramos
+                if current_tab == 'tab-1' and data1:
+                    df1 = pd.DataFrame(data1)
+                    filtered_df1 = filter_dataframe_by_frequencies(df1, freq1) if freq1 else df1
+                    return [create_dash_datatable('table1', filtered_df1)]
+                elif current_tab == 'tab-2' and data2:
+                    df2 = pd.DataFrame(data2)
+                    filtered_df2 = filter_dataframe_by_frequencies(df2, freq2) if freq2 else df2
+                    return [create_dash_datatable('table2', filtered_df2)]
+                elif current_tab == 'tab-3' and data3:
+                    df3 = pd.DataFrame(data3)
+                    filtered_df3 = filter_dataframe_by_frequencies(df3, freq3) if freq3 else df3
+                    return [create_dash_datatable('table3', filtered_df3)]
+            else:
+                # Si la tabla está visible, la ocultamos
+                return []
+
+        # Si se cambian las frecuencias y la tabla está visible, actualizamos la tabla
+        elif current_table is not None and len(current_table) > 0:
+            if current_tab == 'tab-1' and data1:
+                df1 = pd.DataFrame(data1)
+                filtered_df1 = filter_dataframe_by_frequencies(df1, freq1) if freq1 else df1
+                return [create_dash_datatable('table1', filtered_df1)]
+            elif current_tab == 'tab-2' and data2:
+                df2 = pd.DataFrame(data2)
+                filtered_df2 = filter_dataframe_by_frequencies(df2, freq2) if freq2 else df2
+                return [create_dash_datatable('table2', filtered_df2)]
+            elif current_tab == 'tab-3' and data3:
+                df3 = pd.DataFrame(data3)
+                filtered_df3 = filter_dataframe_by_frequencies(df3, freq3) if freq3 else df3
+                return [create_dash_datatable('table3', filtered_df3)]
+
+        return dash.no_update
 
     @app.callback(
-        Output('table2', 'data'),
-        [Input('frequency-dropdown2', 'value'),
-         Input('store-df-original2', 'data')]
+        Output('current-tab', 'data'),
+        [Input('tabs-container', 'value')]
     )
-    def update_table2(selected_frequencies2, stored_data2):
-        return update_table(selected_frequencies2, stored_data2, 'table2')
-
-    @app.callback(
-        Output('table3', 'data'),
-        [Input('frequency-dropdown3', 'value'),
-         Input('store-df-original3', 'data')]
-    )
-    def update_table3(selected_frequencies3, stored_data3):
-        return update_table(selected_frequencies3, stored_data3, 'table3')
+    def update_current_tab(tab):
+        return tab
 
     @app.callback(
         Output('heatmap1', 'figure'),
-        [Input('frequency-dropdown1', 'value'),
-         Input('store-df-original4', 'data')]
+        [Input('date-picker-range', 'start_date'),
+         Input('date-picker-range', 'end_date'),
+         Input('city-dropdown', 'value')]
     )
-    def update_heatmap1(selected_frequencies, stored_data):
-        return update_heatmap(selected_frequencies, stored_data)
+    def update_heatmap1(fecha_inicio, fecha_fin, ciudad):
+        if not all([fecha_inicio, fecha_fin, ciudad]):
+            return go.Figure()
+
+        request = HttpRequest()
+        request.GET = QueryDict(mutable=True)
+        request.GET['start_date'] = fecha_inicio
+        request.GET['end_date'] = fecha_fin
+        request.GET['city'] = ciudad
+
+        try:
+            df_original1, _, _ = customize_data(request)[:3]
+            df_original1 = convert_timestamps_to_strings(df_original1)
+            return create_heatmap_data(df_original1)
+        except Exception as e:
+            return go.Figure()
 
     @app.callback(
         Output('heatmap2', 'figure'),
-        [Input('frequency-dropdown2', 'value'),
-         Input('store-df-original5', 'data')]
+        [Input('date-picker-range', 'start_date'),
+         Input('date-picker-range', 'end_date'),
+         Input('city-dropdown', 'value')]
     )
-    def update_heatmap2(selected_frequencies, stored_data):
-        return update_heatmap(selected_frequencies, stored_data)
+    def update_heatmap2(fecha_inicio, fecha_fin, ciudad):
+        if not all([fecha_inicio, fecha_fin, ciudad]):
+            return go.Figure()
+
+        request = HttpRequest()
+        request.GET = QueryDict(mutable=True)
+        request.GET['start_date'] = fecha_inicio
+        request.GET['end_date'] = fecha_fin
+        request.GET['city'] = ciudad
+
+        try:
+            _, df_original2, _ = customize_data(request)[:3]
+            df_original2 = convert_timestamps_to_strings(df_original2)
+            return create_heatmap_data(df_original2)
+        except Exception as e:
+            return go.Figure()
 
     @app.callback(
         Output('heatmap3', 'figure'),
-        [Input('frequency-dropdown3', 'value'),
-         Input('store-df-original6', 'data')]
+        [Input('date-picker-range', 'start_date'),
+         Input('date-picker-range', 'end_date'),
+         Input('city-dropdown', 'value')]
     )
-    def update_heatmap3(selected_frequencies, stored_data):
-        return update_heatmap(selected_frequencies, stored_data)
+    def update_heatmap3(fecha_inicio, fecha_fin, ciudad):
+        if not all([fecha_inicio, fecha_fin, ciudad]):
+            return go.Figure()
+
+        request = HttpRequest()
+        request.GET = QueryDict(mutable=True)
+        request.GET['start_date'] = fecha_inicio
+        request.GET['end_date'] = fecha_fin
+        request.GET['city'] = ciudad
+
+        try:
+            _, _, df_original3 = customize_data(request)[:3]
+            df_original3 = convert_timestamps_to_strings(df_original3)
+            return create_heatmap_data(df_original3)
+        except Exception as e:
+            return go.Figure()
 
     @app.callback(
         Output('station-plots-container-fm', 'children'),
@@ -199,6 +290,36 @@ def register_callbacks():
     def update_am_station_plot(freq3, data3, autorizations, ciudad):
         if freq3 and data3:
             return html.Div(update_station_plot_am(freq3, data3, autorizations, ciudad))
+        return html.Div()
+
+    @app.callback(
+        Output('new-heatmap-container-fm', 'children'),
+        [Input('frequency-dropdown1', 'value'),
+         Input('store-df-original1', 'data')]
+    )
+    def update_new_heatmap_fm(selected_frequencies, stored_data):
+        if selected_frequencies:
+            return dcc.Graph(figure=update_heatmap(selected_frequencies, stored_data))
+        return html.Div()
+
+    @app.callback(
+        Output('new-heatmap-container-tv', 'children'),
+        [Input('frequency-dropdown2', 'value'),
+         Input('store-df-original2', 'data')]
+    )
+    def update_new_heatmap_tv(selected_frequencies, stored_data):
+        if selected_frequencies:
+            return dcc.Graph(figure=update_heatmap(selected_frequencies, stored_data))
+        return html.Div()
+
+    @app.callback(
+        Output('new-heatmap-container-am', 'children'),
+        [Input('frequency-dropdown3', 'value'),
+         Input('store-df-original3', 'data')]
+    )
+    def update_new_heatmap_am(selected_frequencies, stored_data):
+        if selected_frequencies:
+            return dcc.Graph(figure=update_heatmap(selected_frequencies, stored_data))
         return html.Div()
 
 

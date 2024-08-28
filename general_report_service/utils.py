@@ -1,5 +1,3 @@
-import dask.dataframe as dd
-import numpy as np
 import pandas as pd
 import datetime
 from django.conf import settings
@@ -159,23 +157,37 @@ def create_dash_datatable(table_id: str, dataframe: pd.DataFrame) -> dash_table.
 
 def create_frequency_dropdown(dropdown_id: str, dataframe: pd.DataFrame, placeholder_text: str) -> dcc.Dropdown:
     """
-    Create a dropdown for frequency selection from a DataFrame column 'Frecuencia (Hz)'.
-    If the DataFrame is empty or the specified column doesn't exist, provide a fallback placeholder text.
+    Create a dropdown for frequency selection from a DataFrame, including both frequency and station information.
 
     Args:
         dropdown_id (str): Identifier for the dropdown.
-        dataframe (pd.DataFrame): DataFrame containing the frequency data.
+        dataframe (pd.DataFrame): DataFrame containing the frequency and station data.
         placeholder_text (str): Text to display when no options are available or as a placeholder.
 
     Returns:
         dcc.Dropdown: A Dash core component Dropdown.
     """
-    if not dataframe.empty and 'Frecuencia (Hz)' in dataframe.columns:
-        options = [{'label': freq, 'value': freq} for freq in
-                   sorted(dataframe['Frecuencia (Hz)'].unique().tolist())]
+    if not dataframe.empty and 'Frecuencia (Hz)' in dataframe.columns and 'Estación' in dataframe.columns:
+        # Group by frequency and station to get unique combinations
+        grouped = dataframe.groupby(['Frecuencia (Hz)', 'Estación']).size().reset_index(name='count')
+
+        # Create options list with both frequency and station information
+        options = []
+        for _, row in grouped.iterrows():
+            freq = row['Frecuencia (Hz)']
+            station = row['Estación']
+            if station == "-":
+                label = f"{freq} Hz"
+            else:
+                label = f"{freq} Hz | {station}"
+            options.append({'label': label, 'value': freq})
+
+        # Sort options by frequency
+        options.sort(key=lambda x: x['value'])
     else:
         options = []
         placeholder_text = "No existe información disponible"
+
     return dcc.Dropdown(
         id=dropdown_id,
         options=options,
@@ -264,31 +276,24 @@ def create_heatmap_layout(df_original1: pd.DataFrame, df_original2: pd.DataFrame
     dropdown2 = create_frequency_dropdown('frequency-dropdown2', df_original2, "Seleccione una Frecuencia")
     dropdown3 = create_frequency_dropdown('frequency-dropdown3', df_original3, "Seleccione una Frecuencia")
 
-    table1 = create_dash_datatable('table1', df_original1)
-    table2 = create_dash_datatable('table2', df_original2)
-    table3 = create_dash_datatable('table3', df_original3)
-
     tabs_layout = dcc.Tabs(id='tabs-container', children=[
-        dcc.Tab(label='Radiodifusión FM', children=[
-            table1,
+        dcc.Tab(label='Radiodifusión FM', value='tab-1', children=[
             dcc.Graph(id='heatmap1'),
             html.Div(dropdown1, style={'marginBottom': '10px'}),
-            html.Div(id='new-heatmap-container-fm'),  # New container for the new heatmap
-            html.Div(id='station-plots-container-fm'),  # Unique container for FM
+            html.Div(id='new-heatmap-container-fm'),
+            html.Div(id='station-plots-container-fm'),
         ]),
-        dcc.Tab(label='Televisión', children=[
-            table2,
+        dcc.Tab(label='Televisión', value='tab-2', children=[
             dcc.Graph(id='heatmap2'),
             html.Div(dropdown2, style={'marginBottom': '10px'}),
-            html.Div(id='new-heatmap-container-tv'),  # New container for the new heatmap
-            html.Div(id='station-plots-container-tv'),  # Unique container for TV
+            html.Div(id='new-heatmap-container-tv'),
+            html.Div(id='station-plots-container-tv'),
         ]),
-        dcc.Tab(label='Radiodifusión AM', children=[
-            table3,
+        dcc.Tab(label='Radiodifusión AM', value='tab-3', children=[
             dcc.Graph(id='heatmap3'),
             html.Div(dropdown3, style={'marginBottom': '10px'}),
-            html.Div(id='new-heatmap-container-am'),  # New container for the new heatmap
-            html.Div(id='station-plots-container-am'),  # Unique container for AM
+            html.Div(id='new-heatmap-container-am'),
+            html.Div(id='station-plots-container-am'),
         ]),
     ])
 
@@ -314,51 +319,6 @@ def filter_dataframe_by_frequencies(df: pd.DataFrame, selected_frequencies: list
     else:
         # If no frequencies are selected, return the DataFrame as is.
         return df
-
-
-def read_and_fill_excel(file_path: str, sheet_name: str, fill_value: str = '-') -> pd.DataFrame:
-    """
-    Read and fill missing values in an Excel file.
-
-    Args:
-        file_path (str): Path to the Excel file.
-        sheet_name (str): Sheet name in the Excel file.
-        fill_value (str): Value to fill missing cells.
-
-    Returns:
-        pd.DataFrame: DataFrame with filled values.
-    """
-    return pd.read_excel(file_path, sheet_name=sheet_name).fillna(fill_value)
-
-
-def read_csv_file(file_path: str, columns: list[str]) -> dd.DataFrame:
-    """
-    Read CSV file using Dask and return data as a Dask DataFrame.
-
-    Args:
-        file_path (str): Path to the CSV file.
-        columns (List[str]): List of columns to be read.
-
-    Returns:
-        dd.DataFrame: Dask DataFrame containing the data.
-    """
-    try:
-        return dd.read_csv(file_path, usecols=columns, assume_missing=True, encoding='latin1')
-    except IOError:
-        return dd.from_pandas(pd.DataFrame(np.full((1, len(columns)), np.nan), columns=columns), npartitions=1)
-
-
-def translate_month(month: str) -> str:
-    """
-    Translate month abbreviation to full month name.
-
-    Args:
-        month (str): Month abbreviation.
-
-    Returns:
-        str: Full month name.
-    """
-    return MONTH_TRANSLATIONS.get(month, month)
 
 
 def update_heatmap(selected_frequencies: list, stored_data: list) -> Union[go.Figure, dict]:
@@ -1058,27 +1018,3 @@ def update_station_plot_tv(selected_frequencies: list, stored_data: list, autori
 
     # Return a Div containing all the plots
     return html.Div(plots)
-
-
-def update_table(selected_frequencies: list, stored_data: list, table_id: str) -> list:
-    """
-    Update table based on the selected frequencies.
-
-    Args:
-        selected_frequencies (list): List of selected frequencies.
-        stored_data (list): Previously stored data as a list of dictionaries.
-        table_id (str): ID of the table to be updated.
-
-    Returns:
-        list: Updated data for the table in dictionary format.
-    """
-    if stored_data is None:
-        return []
-
-    df_original = pd.DataFrame.from_records(stored_data)
-
-    if not selected_frequencies:
-        return df_original.to_dict('records')
-
-    filtered_df = df_original[df_original['Frecuencia (Hz)'].isin(selected_frequencies)]
-    return filtered_df.to_dict('records')
