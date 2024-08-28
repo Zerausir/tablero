@@ -59,6 +59,9 @@ def define_app_layout():
         dcc.Store(id='store-df-original4'),
         dcc.Store(id='store-df-original5'),
         dcc.Store(id='store-df-original6'),
+        dcc.Store(id='store-selected-frequencies1'),
+        dcc.Store(id='store-selected-frequencies2'),
+        dcc.Store(id='store-selected-frequencies3'),
         html.Div(id='station-plots-container'),
         html.Button('Mostrar/Ocultar resultados', id='toggle-results-button', n_clicks=0),
         html.Div([
@@ -93,9 +96,12 @@ def register_callbacks():
          Output('data-container', 'children')],
         [Input('date-picker-range', 'start_date'),
          Input('date-picker-range', 'end_date'),
-         Input('city-dropdown', 'value')]
+         Input('city-dropdown', 'value')],
+        [State('store-selected-frequencies1', 'data'),
+         State('store-selected-frequencies2', 'data'),
+         State('store-selected-frequencies3', 'data')]
     )
-    def update_content(fecha_inicio, fecha_fin, ciudad):
+    def update_content(fecha_inicio, fecha_fin, ciudad, selected_freq1, selected_freq2, selected_freq3):
         if not all([fecha_inicio, fecha_fin, ciudad]):
             return {}, {}, {}, {}, {}, {}, "Selecciona una fecha inicial, una fecha final y una ciudad"
 
@@ -119,7 +125,8 @@ def register_callbacks():
                     tabs_layout = html.Div()
                 else:
                     no_data_message = ""
-                    tabs_layout = create_heatmap_layout(df_original1, df_original2, df_original3)
+                    tabs_layout = create_heatmap_layout(df_original1, df_original2, df_original3, selected_freq1,
+                                                        selected_freq2, selected_freq3)
 
                 return (df_original1.to_dict('records'), df_original2.to_dict('records'),
                         df_original3.to_dict('records'), df_clean1.to_dict('records'),
@@ -127,6 +134,38 @@ def register_callbacks():
                         html.Div([tabs_layout, html.Div(no_data_message)]))
             except Exception as e:
                 return {}, {}, {}, {}, {}, {}, f"Error al obtener los datos: {str(e)}"
+
+    @app.callback(
+        [Output('store-selected-frequencies1', 'data'),
+         Output('store-selected-frequencies2', 'data'),
+         Output('store-selected-frequencies3', 'data')],
+        [Input('frequency-dropdown1', 'value'),
+         Input('frequency-dropdown2', 'value'),
+         Input('frequency-dropdown3', 'value')]
+    )
+    def store_selected_frequencies(freq1, freq2, freq3):
+        return freq1, freq2, freq3
+
+    @app.callback(
+        Output('frequency-dropdown1', 'value'),
+        [Input('store-selected-frequencies1', 'data')]
+    )
+    def update_dropdown1(stored_freq):
+        return stored_freq
+
+    @app.callback(
+        Output('frequency-dropdown2', 'value'),
+        [Input('store-selected-frequencies2', 'data')]
+    )
+    def update_dropdown2(stored_freq):
+        return stored_freq
+
+    @app.callback(
+        Output('frequency-dropdown3', 'value'),
+        [Input('store-selected-frequencies3', 'data')]
+    )
+    def update_dropdown3(stored_freq):
+        return stored_freq
 
     @app.callback(
         Output('table-container', 'children'),

@@ -155,18 +155,7 @@ def create_dash_datatable(table_id: str, dataframe: pd.DataFrame) -> dash_table.
     )
 
 
-def create_frequency_dropdown(dropdown_id: str, dataframe: pd.DataFrame, placeholder_text: str) -> dcc.Dropdown:
-    """
-    Create a dropdown for frequency selection from a DataFrame, including both frequency and station information.
-
-    Args:
-        dropdown_id (str): Identifier for the dropdown.
-        dataframe (pd.DataFrame): DataFrame containing the frequency and station data.
-        placeholder_text (str): Text to display when no options are available or as a placeholder.
-
-    Returns:
-        dcc.Dropdown: A Dash core component Dropdown.
-    """
+def create_frequency_dropdown(dropdown_id, dataframe, placeholder_text, selected_frequencies=None):
     if not dataframe.empty and 'Frecuencia (Hz)' in dataframe.columns and 'Estación' in dataframe.columns:
         # Group by frequency and station to get unique combinations
         grouped = dataframe.groupby(['Frecuencia (Hz)', 'Estación']).size().reset_index(name='count')
@@ -191,6 +180,7 @@ def create_frequency_dropdown(dropdown_id: str, dataframe: pd.DataFrame, placeho
     return dcc.Dropdown(
         id=dropdown_id,
         options=options,
+        value=selected_frequencies,  # Set the initial value
         placeholder=placeholder_text,
         multi=True,
         style={'margin': '10px'}
@@ -259,22 +249,14 @@ def create_heatmap_data(df: pd.DataFrame, selected_frequencies=None) -> dict:
     }
 
 
-def create_heatmap_layout(df_original1: pd.DataFrame, df_original2: pd.DataFrame,
-                          df_original3: pd.DataFrame) -> dcc.Tabs:
-    """
-    Create a tabs layout with dropdowns, tables, and placeholders for heatmaps for three different data sources.
-
-    Args:
-        df_original1 (pd.DataFrame): DataFrame for the first tab.
-        df_original2 (pd.DataFrame): DataFrame for the second tab.
-        df_original3 (pd.DataFrame): DataFrame for the third tab.
-
-    Returns:
-        dcc.Tabs: Tabs component containing dropdowns, tables, and graph placeholders.
-    """
-    dropdown1 = create_frequency_dropdown('frequency-dropdown1', df_original1, "Seleccione una Frecuencia")
-    dropdown2 = create_frequency_dropdown('frequency-dropdown2', df_original2, "Seleccione una Frecuencia")
-    dropdown3 = create_frequency_dropdown('frequency-dropdown3', df_original3, "Seleccione una Frecuencia")
+def create_heatmap_layout(df_original1, df_original2, df_original3, selected_freq1=None, selected_freq2=None,
+                          selected_freq3=None):
+    dropdown1 = create_frequency_dropdown('frequency-dropdown1', df_original1, "Seleccione una Frecuencia",
+                                          selected_freq1)
+    dropdown2 = create_frequency_dropdown('frequency-dropdown2', df_original2, "Seleccione una Frecuencia",
+                                          selected_freq2)
+    dropdown3 = create_frequency_dropdown('frequency-dropdown3', df_original3, "Seleccione una Frecuencia",
+                                          selected_freq3)
 
     tabs_layout = dcc.Tabs(id='tabs-container', children=[
         dcc.Tab(label='Radiodifusión FM', value='tab-1', children=[
