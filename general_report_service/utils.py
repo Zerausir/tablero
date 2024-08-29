@@ -446,16 +446,16 @@ def update_station_plot_am(selected_frequencies: list, stored_data: list, autori
         # Adding area plots with custom colors
         fig.add_trace(go.Scatter(x=df_filtered['Tiempo'], y=df_filtered['plus'], fill='tozeroy',
                                  name='Los valores de campo eléctrico diario superan el valor del borde de área de cobertura (>=62 dBuV/m).',
-                                 line=dict(color=colors['Plus'])))
+                                 line=dict(color=colors['Plus']), hovertemplate='%{y:.2f} dBµV/m<br>Fecha: %{x}'))
         fig.add_trace(go.Scatter(x=df_filtered['Tiempo'], y=df_filtered['bet'], fill='tozeroy',
                                  name='Los valores de campo eléctrico diario se encuentran entre el valor del borde de área de protección y el valor del borde de área de cobertura (entre 40 y 62 dBuV/m).',
-                                 line=dict(color=colors['Bet'])))
+                                 line=dict(color=colors['Bet']), hovertemplate='%{y:.2f} dBµV/m<br>Fecha: %{x}'))
         fig.add_trace(go.Scatter(x=df_filtered['Tiempo'], y=df_filtered['minus'], fill='tozeroy',
                                  name='Los valores de campo eléctrico diario son inferiores al valor del borde de área de protección (<40 dBuV/m).',
-                                 line=dict(color=colors['Minus'])))
+                                 line=dict(color=colors['Minus']), hovertemplate='%{y:.2f} dBµV/m<br>Fecha: %{x}'))
         fig.add_trace(go.Scatter(x=df_filtered['Tiempo'], y=df_filtered['valor'], fill='tozeroy',
                                  name='No se dispone de mediciones del sistema SACER.',
-                                 line=dict(color=colors['Valor'])))
+                                 line=dict(color=colors['Valor']), hovertemplate='%{y:.2f} dBµV/m<br>Fecha: %{x}'))
 
         Autorizaciones = 'Dispone de autorización para suspensión de emisiones.'
         Autorizacionesbp = 'Dispone de autorización para operación con baja potencia.'
@@ -463,11 +463,27 @@ def update_station_plot_am(selected_frequencies: list, stored_data: list, autori
         # Use the autorizations_selected flag to determine whether to plot 'autorizaciones' data
         if autorizations_selected:
             fig.add_trace(
-                go.Scatter(x=df_filtered['Tiempo'], y=df_filtered['aut'], fill='tozeroy', name=Autorizaciones,
-                           line=dict(color=colors['Autorizaciones'])))
+                go.Scatter(
+                    x=df_filtered['Tiempo'],
+                    y=df_filtered['aut'],
+                    fill='tozeroy',
+                    name=Autorizaciones,
+                    line=dict(color=colors['Autorizaciones']),
+                    hovertemplate='%{y:.2f} dBµV/m<br>Fecha: %{x}<br>Oficio: %{text}',
+                    text=df_filtered['Oficio']
+                )
+            )
             fig.add_trace(
-                go.Scatter(x=df_filtered['Tiempo'], y=df_filtered['autbp'], fill='tozeroy', name=Autorizacionesbp,
-                           line=dict(color=colors['Autorizacionesbp'])))
+                go.Scatter(
+                    x=df_filtered['Tiempo'],
+                    y=df_filtered['autbp'],
+                    fill='tozeroy',
+                    name=Autorizacionesbp,
+                    line=dict(color=colors['Autorizacionesbp']),
+                    hovertemplate='%{y:.2f} dBµV/m<br>Fecha: %{x}<br>Oficio: %{text}',
+                    text=df_filtered['Oficio']
+                )
+            )
 
         # Setting plot layout
         tick_labels = df_filtered['Tiempo'].unique().tolist()
@@ -705,16 +721,16 @@ def update_station_plot_fm(selected_frequencies: list, stored_data: list, autori
         # Adding area plots with custom colors
         fig.add_trace(go.Scatter(x=df_filtered['Tiempo'], y=df_filtered['plus'], fill='tozeroy',
                                  name=f'Los valores de campo eléctrico diario superan el valor del borde de área de cobertura ({tipo}: >={maximo} dBuV/m).',
-                                 line=dict(color=colors['Plus'])))
+                                 line=dict(color=colors['Plus']), hovertemplate='%{y:.2f} dBµV/m<br>Fecha: %{x}'))
         fig.add_trace(go.Scatter(x=df_filtered['Tiempo'], y=df_filtered['bet'], fill='tozeroy',
                                  name=f'Los valores de campo eléctrico diario se encuentran entre el valor del borde de área de protección y el valor del borde de área de cobertura ({tipo}: entre {minimo} y {maximo} dBuV/m).',
-                                 line=dict(color=colors['Bet'])))
+                                 line=dict(color=colors['Bet']), hovertemplate='%{y:.2f} dBµV/m<br>Fecha: %{x}'))
         fig.add_trace(go.Scatter(x=df_filtered['Tiempo'], y=df_filtered['minus'], fill='tozeroy',
                                  name=f'Los valores de campo eléctrico diario son inferiores al valor del borde de área de protección ({tipo}: <{minimo} dBuV/m).',
-                                 line=dict(color=colors['Minus'])))
+                                 line=dict(color=colors['Minus']), hovertemplate='%{y:.2f} dBµV/m<br>Fecha: %{x}'))
         fig.add_trace(go.Scatter(x=df_filtered['Tiempo'], y=df_filtered['valor'], fill='tozeroy',
                                  name='No se dispone de mediciones del sistema SACER.',
-                                 line=dict(color=colors['Valor'])))
+                                 line=dict(color=colors['Valor']), hovertemplate='%{y:.2f} dBµV/m<br>Fecha: %{x}'))
 
         Autorizaciones = 'Dispone de autorización para suspensión de emisiones.'
         Autorizacionesbp = 'Dispone de autorización para operación con baja potencia.'
@@ -722,11 +738,27 @@ def update_station_plot_fm(selected_frequencies: list, stored_data: list, autori
         # Use the autorizations_selected flag to determine whether to plot 'autorizaciones' data
         if autorizations_selected:
             fig.add_trace(
-                go.Scatter(x=df_filtered['Tiempo'], y=df_filtered['aut'], fill='tozeroy', name=Autorizaciones,
-                           line=dict(color=colors['Autorizaciones'])))
+                go.Scatter(
+                    x=df_filtered['Tiempo'],
+                    y=df_filtered['aut'],
+                    fill='tozeroy',
+                    name=Autorizaciones,
+                    line=dict(color=colors['Autorizaciones']),
+                    hovertemplate='%{y:.2f} dBµV/m<br>Fecha: %{x}<br>Oficio: %{text}',
+                    text=df_filtered['Oficio']
+                )
+            )
             fig.add_trace(
-                go.Scatter(x=df_filtered['Tiempo'], y=df_filtered['autbp'], fill='tozeroy', name=Autorizacionesbp,
-                           line=dict(color=colors['Autorizacionesbp'])))
+                go.Scatter(
+                    x=df_filtered['Tiempo'],
+                    y=df_filtered['autbp'],
+                    fill='tozeroy',
+                    name=Autorizacionesbp,
+                    line=dict(color=colors['Autorizacionesbp']),
+                    hovertemplate='%{y:.2f} dBµV/m<br>Fecha: %{x}<br>Oficio: %{text}',
+                    text=df_filtered['Oficio']
+                )
+            )
 
         # Setting plot layout
         tick_labels = df_filtered['Tiempo'].unique().tolist()
@@ -957,22 +989,38 @@ def update_station_plot_tv(selected_frequencies: list, stored_data: list, autori
 
         # Adding area plots with custom colors
         fig.add_trace(go.Scatter(x=df_filtered['Tiempo'], y=df_filtered['plus'], fill='tozeroy', name=Plus,
-                                 line=dict(color=colors['Plus'])))
+                                 line=dict(color=colors['Plus']), hovertemplate='%{y:.2f} dBµV/m<br>Fecha: %{x}'))
         fig.add_trace(go.Scatter(x=df_filtered['Tiempo'], y=df_filtered['bet'], fill='tozeroy', name=Bet,
-                                 line=dict(color=colors['Bet'])))
+                                 line=dict(color=colors['Bet']), hovertemplate='%{y:.2f} dBµV/m<br>Fecha: %{x}'))
         fig.add_trace(go.Scatter(x=df_filtered['Tiempo'], y=df_filtered['minus'], fill='tozeroy', name=Minus,
-                                 line=dict(color=colors['Minus'])))
+                                 line=dict(color=colors['Minus']), hovertemplate='%{y:.2f} dBµV/m<br>Fecha: %{x}'))
         fig.add_trace(go.Scatter(x=df_filtered['Tiempo'], y=df_filtered['valor'], fill='tozeroy', name=Valor,
-                                 line=dict(color=colors['Valor'])))
+                                 line=dict(color=colors['Valor']), hovertemplate='%{y:.2f} dBµV/m<br>Fecha: %{x}'))
 
         # Use the autorizations_selected flag to determine whether to plot 'autorizaciones' data
         if autorizations_selected:
             fig.add_trace(
-                go.Scatter(x=df_filtered['Tiempo'], y=df_filtered['aut'], fill='tozeroy', name=Autorizaciones,
-                           line=dict(color=colors['Autorizaciones'])))
+                go.Scatter(
+                    x=df_filtered['Tiempo'],
+                    y=df_filtered['aut'],
+                    fill='tozeroy',
+                    name=Autorizaciones,
+                    line=dict(color=colors['Autorizaciones']),
+                    hovertemplate='%{y:.2f} dBµV/m<br>Fecha: %{x}<br>Oficio: %{text}',
+                    text=df_filtered['Oficio']
+                )
+            )
             fig.add_trace(
-                go.Scatter(x=df_filtered['Tiempo'], y=df_filtered['autbp'], fill='tozeroy', name=Autorizacionesbp,
-                           line=dict(color=colors['Autorizacionesbp'])))
+                go.Scatter(
+                    x=df_filtered['Tiempo'],
+                    y=df_filtered['autbp'],
+                    fill='tozeroy',
+                    name=Autorizacionesbp,
+                    line=dict(color=colors['Autorizacionesbp']),
+                    hovertemplate='%{y:.2f} dBµV/m<br>Fecha: %{x}<br>Oficio: %{text}',
+                    text=df_filtered['Oficio']
+                )
+            )
 
         # Setting plot layout
         tick_labels = df_filtered['Tiempo'].unique().tolist()
