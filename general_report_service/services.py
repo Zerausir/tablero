@@ -81,12 +81,12 @@ def fm_fetch_data_from_db(request):
         # Eliminar filas duplicadas
         df = df.drop_duplicates()
 
-        # Analizar el DataFrame
-        df_analysis = analyze_dataframe(df)
-
-        # Imprimir o loggear el análisis
-        print("DataFrame después de la limpieza:")
-        print(df_analysis)
+        # # Analizar el DataFrame
+        # df_analysis = analyze_dataframe(df)
+        #
+        # # Imprimir o loggear el análisis
+        # print("DataFrame después de la limpieza:")
+        # print(df_analysis)
 
         # Cache the data for 10 minutes
         cache.set(cache_key, df, 60 * 10)
@@ -148,12 +148,12 @@ def tv_fetch_data_from_db(request):
         # Eliminar filas duplicadas
         df = df.drop_duplicates()
 
-        # Analizar el DataFrame
-        df_analysis = analyze_dataframe(df)
-
-        # Imprimir o loggear el análisis
-        print("DataFrame después de la limpieza:")
-        print(df_analysis)
+        # # Analizar el DataFrame
+        # df_analysis = analyze_dataframe(df)
+        #
+        # # Imprimir o loggear el análisis
+        # print("DataFrame después de la limpieza:")
+        # print(df_analysis)
 
         # Cache the data for 10 minutes
         cache.set(cache_key, df, 60 * 10)
@@ -215,12 +215,12 @@ def am_fetch_data_from_db(request):
         # Eliminar filas duplicadas
         df = df.drop_duplicates()
 
-        # Analizar el DataFrame
-        df_analysis = analyze_dataframe(df)
-
-        # Imprimir o loggear el análisis
-        print("DataFrame después de la limpieza:")
-        print(df_analysis)
+        # # Analizar el DataFrame
+        # df_analysis = analyze_dataframe(df)
+        #
+        # # Imprimir o loggear el análisis
+        # print("DataFrame después de la limpieza:")
+        # print(df_analysis)
 
         # Cache the data for 10 minutes
         cache.set(cache_key, df, 60 * 10)
@@ -407,3 +407,93 @@ def analyze_dataframe(df):
         analysis[column] = col_analysis
 
     return analysis
+
+
+@cache_page(60 * 10)
+def rtv_warnings_fetch_data_from_db(request):
+    """
+    Fetch RTV warnings data from the database based on the selected city and date range.
+
+    Args:
+        request (django.http.HttpRequest): The HTTP request object.
+
+    Returns:
+        pandas.DataFrame: A DataFrame containing the RTV warnings data.
+    """
+    start_date = request.GET.get('start_date')
+    end_date = request.GET.get('end_date')
+    city = request.GET.get('city')
+
+    # Convert start_date and end_date to datetime objects
+    start_date = datetime.datetime.strptime(start_date, '%Y-%m-%d')
+    end_date = datetime.datetime.strptime(end_date, '%Y-%m-%d')
+
+    # Check if the data is already in the cache
+    cache_key = f"rtv_warnings_data_{city}_{start_date}_{end_date}"
+    cached_data = cache.get(cache_key)
+    if cached_data is not None:
+        return cached_data
+
+    try:
+        conn = get_db_connection()
+        query = """
+                SELECT *
+                FROM rtv_operation_warnings
+                WHERE ciudad = %s AND tiempo >= %s AND tiempo < %s + INTERVAL '1 DAY'
+            """
+        params = [city, start_date, end_date]
+        df = pd.read_sql(query, conn, params=params)
+        conn.close()
+
+        print("Datos recuperados de rtv_operation_warnings:")
+        print(df.head())
+        print(df.dtypes)
+
+        # Cache the data for 10 minutes
+        cache.set(cache_key, df, 60 * 10)
+
+        return df
+    except Exception as e:
+        print(f"Error al recuperar datos de rtv_operation_warnings: {str(e)}")
+        raise Exception(f"Error fetching RTV warnings data from the database: {str(e)}")
+
+
+def customize_rtv_warnings_data(request):
+    """
+    Customize RTV warnings data based on selected city and date range.
+
+    Args:
+        request (django.http.HttpRequest): The HTTP request object.
+
+    Returns:
+        pd.DataFrame: Processed DataFrame with RTV warnings data.
+    """
+    ciudad = request.GET.get('city')
+    fecha_inicio = convert_start_date(request.GET.get('start_date'))
+    fecha_fin = convert_end_date(request.GET.get('end_date'))
+
+    df_warnings = rtv_warnings_fetch_data_from_db(request)
+
+    if df_warnings is None or df_warnings.empty:
+        return pd.DataFrame()
+
+    df_warnings['tiempo'] = pd.to_datetime(df_warnings['tiempo'])
+    df_warnings = df_warnings[(df_warnings['tiempo'] >= fecha_inicio) & (df_warnings['tiempo'] <= fecha_fin)]
+
+    # Asegúrate de que los nombres de las columnas sean consistentes
+    df_warnings = df_warnings.rename(columns={
+        'tiempo': 'Tiempo',
+        'frecuencia_hz': 'Frecuencia (Hz)',
+        'ciudad': 'Ciudad',
+        'estacion': 'Estación',
+        'servicio': 'Servicio',
+        'analogico_digital': 'Analógico/Digital',
+        'level_dbuv_m': 'Level (dBµV/m)'
+    })
+
+    print("DataFrame después de customize_rtv_warnings_data:")
+    print(df_warnings.head())
+    print(df_warnings.columns)
+    print(df_warnings.dtypes)
+
+    return df_warnings

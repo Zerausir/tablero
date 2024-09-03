@@ -277,6 +277,9 @@ def create_heatmap_layout(df_original1, df_original2, df_original3, selected_fre
             html.Div(id='new-heatmap-container-am'),
             html.Div(id='station-plots-container-am'),
         ]),
+        dcc.Tab(label='Estaciones con Observaciones', value='tab-4', children=[
+            html.Div(id='warnings-container'),
+        ]),
     ])
 
     return tabs_layout
@@ -1096,3 +1099,154 @@ def update_station_plot_tv(selected_frequencies: list, stored_data: list, autori
 
     # Return a Div containing all the plots
     return html.Div(plots)
+
+
+def process_warnings_data(df_warnings):
+    """
+    Process warnings data to create tables with continuous days of warnings and alerts.
+
+    Args:
+        df_warnings (pd.DataFrame): DataFrame with warnings data.
+
+    Returns:
+        tuple: Three DataFrames for 5/9 days, 60 days, and 91 days warnings/alerts.
+    """
+    print("DataFrame al inicio de process_warnings_data:")
+    print(df_warnings.head())
+    print(df_warnings.columns)
+    print(df_warnings.dtypes)
+
+    if df_warnings.empty:
+        return pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
+
+    if 'Tiempo' not in df_warnings.columns:
+        raise ValueError("La columna 'Tiempo' no está presente en el DataFrame")
+
+    # Filtrar las filas que no contienen "COLOMBIANA" en la columna "Estación"
+    df_warnings = df_warnings[~df_warnings['Estación'].str.contains('COLOMBIANA', case=False, na=False)]
+
+    df_warnings['Tiempo'] = pd.to_datetime(df_warnings['Tiempo'])
+    df_warnings = df_warnings.sort_values(['Estación', 'Frecuencia (Hz)', 'Tiempo'])
+
+    def count_continuous_days(group):
+        return group.groupby((group.diff() != pd.Timedelta(days=1)).cumsum()).cumcount() + 1
+
+    try:
+        df_warnings['Días continuos'] = df_warnings.groupby(['Estación', 'Frecuencia (Hz)'])['Tiempo'].transform(
+            count_continuous_days)
+    except Exception as e:
+        print(f"Error al calcular días continuos: {str(e)}")
+        print("Columnas en df_warnings:", df_warnings.columns)
+        print("Tipos de datos en df_warnings:", df_warnings.dtypes)
+        raise
+
+    def generate_warning_alert_columns(df, days_warning, days_alert, warning_prefix, alert_prefix):
+        warnings = df[df['Días continuos'] == days_warning].groupby(['Estación', 'Frecuencia (Hz)']).cumcount() + 1
+        alerts = df[df['Días continuos'] == days_alert].groupby(['Estación', 'Frecuencia (Hz)']).cumcount() + 1
+
+        for i in range(1, warnings.max() + 1 if not warnings.empty else 1):
+            col_name = f'{warning_prefix} {i} ({days_warning} días)'
+            df[col_name] = df[df['Días continuos'] == days_warning].groupby(['Estación', 'Frecuencia (Hz)']).nth(i - 1)[
+                'Tiempo']
+
+        for i in range(1, alerts.max() + 1 if not alerts.empty else 1):
+            col_name = f'{alert_prefix} {i} ({days_alert} días)'
+            df[col_name] = df[df['Días continuos'] == days_alert].groupby(['Estación', 'Frecuencia (Hz)']).nth(i - 1)[
+                'Tiempo']
+
+        return df
+
+    df_5_9_days = generate_warning_alert_columns(df_warnings.copy(), 5, 9, 'Adv.', 'Alert.')
+    df_60_days = generate_warning_alert_columns(df_warnings.copy(), 60, 60, 'Adv.', 'Adv.')
+    df_91_days = generate_warning_alert_columns(df_warnings.copy(), 91, 91, 'Alert.', 'Alert.')
+
+    columns_to_keep = ['Frecuencia (Hz)', 'Estación', 'Ciudad', 'Servicio', 'Analógico/Digital']
+
+    # Filtrar solo las estaciones con advertencias o alertas
+    df_5_9_days = df_5_9_days[
+        df_5_9_days[[col for col in df_5_9_days.columns if 'Adv.' in col or 'Alert.' in col]].notna().any(axis=1)]
+    df_60_days = df_60_days[df_60_days[[col for col in df_60_days.columns if 'Adv.' in col]].notna().any(axis=1)]
+    df_91_days = df_91_days[df_91_days[[col for col in df_91_days.columns if 'Alert.' in col]].notna().any(axis=1)]
+
+    df_5_9_days = df_5_9_days.groupby(['Frecuencia (Hz)', 'Estación']).first().reset_index()[
+        columns_to_keep + [col for col in df_5_9_days.columns if 'Adv.' in col or 'Alert.' in col]]
+    df_60_days = df_60_days.groupby(['Frecuencia (Hz)', 'Estación']).first().reset_index()[
+        columns_to_keep + [col for col in df_60_days.columns if 'Adv.' in col]]
+    df_91_days = df_91_days.groupby(['Frecuencia (Hz)', 'Estación']).first().reset_index()[
+        columns_to_keep + [col for col in df_91_days.columns if 'Alert.' in col]]
+
+    print("DataFrames procesados:")
+    print("5_9_days shape:", df_5_9_days.shape)
+    print("60_days shape:", df_60_days.shape)
+    print("91_days shape:", df_91_days.shape)
+
+    return df_5_9_days, df_60_days, df_91_days
+
+
+def create_warnings_tables(df_5_9_days, df_60_days, df_91_days):
+    """
+    Create Dash DataTables for warnings and alerts.
+
+    Args:
+        df_5_9_days (pd.DataFrame): DataFrame with 5 days warnings and 9 days alerts.
+        df_60_days (pd.DataFrame): DataFrame with 60 days warnings.
+        df_91_days (pd.DataFrame): DataFrame with 91 days alerts.
+
+    Returns:
+        list: List of Dash DataTable components.
+    """
+    tables = []
+    for i, (df, title) in enumerate([
+        (df_5_9_days, "Advertencias (5 días) y Alertas (9 días)"),
+        (df_60_days, "Advertencias de 60 días"),
+        (df_91_days, "Alertas de 91 días")
+    ], 1):
+        if not df.empty:
+            # Definir el estilo condicional
+            style_conditional = []
+            for col in df.columns:
+                if 'Adv.' in col:
+                    style_conditional.append({
+                        'if': {'column_id': col},
+                        'backgroundColor': '#FFFF99',  # Amarillo tenue para advertencias
+                        'color': 'black'
+                    })
+                elif 'Alert.' in col:
+                    style_conditional.append({
+                        'if': {'column_id': col},
+                        'backgroundColor': '#FFCCCB',  # Rojo tenue para alertas
+                        'color': 'black'
+                    })
+
+            table = dash_table.DataTable(
+                id=f'warnings-table-{i}',
+                columns=[{"name": col, "id": col} for col in df.columns],
+                data=df.to_dict('records'),
+                style_table={'overflowX': 'auto'},
+                style_cell={
+                    'minWidth': '100px', 'width': '150px', 'maxWidth': '300px',
+                    'overflow': 'hidden',
+                    'textOverflow': 'ellipsis',
+                },
+                style_header={
+                    'backgroundColor': 'white',
+                    'fontWeight': 'bold',
+                    'textAlign': 'center',
+                },
+                style_data_conditional=style_conditional,
+                page_size=10,
+            )
+            tables.append(html.Div([
+                html.H3(title),
+                table
+            ]))
+        else:
+            tables.append(html.Div([
+                html.H3(title),
+                html.P("No hay datos para mostrar en esta tabla.")
+            ]))
+
+    if all(df.empty for df in [df_5_9_days, df_60_days, df_91_days]):
+        return [html.Div("No se encontraron advertencias ni alertas para los parámetros seleccionados.")]
+
+    return tables

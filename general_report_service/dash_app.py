@@ -9,8 +9,8 @@ import dash
 
 from .utils import (convert_timestamps_to_strings, create_heatmap_layout, update_heatmap, update_station_plot_fm,
                     update_station_plot_tv, update_station_plot_am, create_heatmap_data, create_dash_datatable,
-                    filter_dataframe_by_frequencies)
-from .services import customize_data
+                    filter_dataframe_by_frequencies, process_warnings_data, create_warnings_tables)
+from .services import customize_data, customize_rtv_warnings_data
 
 app = DjangoDash(
     name='GeneralReportApp',
@@ -63,14 +63,16 @@ def define_app_layout():
         dcc.Store(id='store-selected-frequencies2'),
         dcc.Store(id='store-selected-frequencies3'),
         html.Div(id='station-plots-container'),
-        html.Button('Mostrar/Ocultar resultados', id='toggle-results-button', n_clicks=0),
         html.Div([
-            dcc.Loading(
-                id="loading-table",
-                type="default",
-                children=[html.Div(id='table-container')]
-            )
-        ]),
+            html.Button('Mostrar/Ocultar resultados', id='toggle-results-button', n_clicks=0),
+            html.Div([
+                dcc.Loading(
+                    id="loading-table",
+                    type="default",
+                    children=[html.Div(id='table-container')]
+                )
+            ])
+        ], id='results-container', style={'display': 'none'}),
         dcc.Store(id='current-tab', data='tab-1'),
     ], style={
         'display': 'flex',
@@ -168,6 +170,16 @@ def register_callbacks():
         return stored_freq
 
     @app.callback(
+        Output('results-container', 'style'),
+        [Input('current-tab', 'data')]
+    )
+    def toggle_results_visibility(current_tab):
+        if current_tab == 'tab-4':  # 'tab-4' es la pestaña "Estaciones con Advertencia"
+            return {'display': 'none'}
+        else:
+            return {'display': 'block'}
+
+    @app.callback(
         Output('table-container', 'children'),
         [Input('toggle-results-button', 'n_clicks'),
          Input('frequency-dropdown1', 'value'),
@@ -180,6 +192,9 @@ def register_callbacks():
          State('table-container', 'children')]
     )
     def update_table_visibility(n_clicks, freq1, freq2, freq3, current_tab, data1, data2, data3, current_table):
+        if current_tab == 'tab-4':  # No mostrar la tabla en la pestaña "Estaciones con Advertencia"
+            return []
+
         ctx = dash.callback_context
         button_id = ctx.triggered[0]['prop_id'].split('.')[0]
 
@@ -360,6 +375,48 @@ def register_callbacks():
         if selected_frequencies:
             return dcc.Graph(figure=update_heatmap(selected_frequencies, stored_data))
         return html.Div()
+
+    @app.callback(
+        Output('warnings-container', 'children'),
+        [Input('date-picker-range', 'start_date'),
+         Input('date-picker-range', 'end_date'),
+         Input('city-dropdown', 'value')]
+    )
+    def update_warnings_tables(start_date, end_date, city):
+        if not all([start_date, end_date, city]):
+            return "Selecciona una fecha inicial, una fecha final y una ciudad"
+
+        request = HttpRequest()
+        request.GET = QueryDict(mutable=True)
+        request.GET['start_date'] = start_date
+        request.GET['end_date'] = end_date
+        request.GET['city'] = city
+
+        try:
+            print(f"Fetching warnings data for {city} from {start_date} to {end_date}")
+            df_warnings = customize_rtv_warnings_data(request)
+            print(f"Warnings data shape: {df_warnings.shape}")
+            print(f"Warnings data columns: {df_warnings.columns}")
+            print(f"Warnings data head:\n{df_warnings.head()}")
+            print(f"Warnings data types:\n{df_warnings.dtypes}")
+
+            if df_warnings.empty:
+                return "No se encontraron datos de advertencias para los parámetros seleccionados."
+
+            print("Procesando datos de advertencias...")
+            df_5_9_days, df_60_days, df_91_days = process_warnings_data(df_warnings)
+            print(
+                f"Processed data shapes: 5_9_days={df_5_9_days.shape}, 60_days={df_60_days.shape}, 91_days={df_91_days.shape}")
+
+            print("Creando tablas de advertencias...")
+            tables = create_warnings_tables(df_5_9_days, df_60_days, df_91_days)
+            return html.Div(tables)
+        except Exception as e:
+            import traceback
+            error_msg = f"Error al procesar los datos de advertencias: {str(e)}\n\n"
+            error_msg += traceback.format_exc()
+            print(error_msg)
+            return error_msg
 
 
 register_callbacks()
