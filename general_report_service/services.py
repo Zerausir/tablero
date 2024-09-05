@@ -4,7 +4,7 @@ import psycopg
 from django.conf import settings
 from django.views.decorators.cache import cache_page
 from django.core.cache import cache
-from .utils import convert_start_date, convert_end_date
+from .utils import convert_start_date, convert_end_date, process_warnings_data
 
 pd.set_option('future.no_silent_downcasting', True)
 
@@ -253,7 +253,6 @@ def customize_data(request) -> tuple[
     fecha_fin = convert_end_date(request.GET.get('end_date'))
 
     df_data1 = fm_fetch_data_from_db(request)
-    print(f"Fetched fm data for {ciudad} from {fecha_inicio} to {fecha_fin}: {df_data1.head()}")
 
     if df_data1 is None:
         df_original1 = pd.DataFrame()
@@ -281,7 +280,6 @@ def customize_data(request) -> tuple[
             {'Level (dBµV/m)': 'max', 'Estación': 'first'}).reset_index()
 
     df_data2 = tv_fetch_data_from_db(request)
-    print(f"Fetched tv data for {ciudad} from {fecha_inicio} to {fecha_fin}: {df_data2.head()}")
 
     if df_data2 is None:
         df_original2 = pd.DataFrame()
@@ -311,7 +309,6 @@ def customize_data(request) -> tuple[
             {'Level (dBµV/m)': 'max', 'Estación': 'first'}).reset_index()
 
     df_data3 = am_fetch_data_from_db(request)
-    print(f"Fetched am data for {ciudad} from {fecha_inicio} to {fecha_fin}: {df_data3.head()}")
 
     if df_data3 is None:
         df_original3 = pd.DataFrame()
@@ -445,10 +442,6 @@ def rtv_warnings_fetch_data_from_db(request):
         df = pd.read_sql(query, conn, params=params)
         conn.close()
 
-        print("Datos recuperados de rtv_operation_warnings:")
-        print(df.head())
-        print(df.dtypes)
-
         # Cache the data for 10 minutes
         cache.set(cache_key, df, 60 * 10)
 
@@ -491,9 +484,37 @@ def customize_rtv_warnings_data(request):
         'level_dbuv_m': 'Level (dBµV/m)'
     })
 
-    print("DataFrame después de customize_rtv_warnings_data:")
-    print(df_warnings.head())
-    print(df_warnings.columns)
-    print(df_warnings.dtypes)
+    # Asegúrate de que todas las columnas necesarias estén presentes
+    required_columns = ['Tiempo', 'Frecuencia (Hz)', 'Estación', 'Ciudad', 'Servicio', 'Level (dBµV/m)']
+    for col in required_columns:
+        if col not in df_warnings.columns:
+            df_warnings[col] = None
 
     return df_warnings
+
+
+def marks_rtv_warnings_data(request):
+    df_warnings = customize_rtv_warnings_data(request)
+
+    if df_warnings is None or df_warnings.empty:
+        return pd.DataFrame(), pd.DataFrame()
+
+    df_5_9_days, df_60_days, df_91_days = process_warnings_data(df_warnings)
+
+    # Crear df_warnings_all
+    df_warnings_all = pd.merge(
+        df_5_9_days[['Frecuencia (Hz)', 'Estación'] + [col for col in df_5_9_days.columns if 'Adv.' in col]],
+        df_60_days[['Frecuencia (Hz)', 'Estación'] + [col for col in df_60_days.columns if 'Adv.' in col]],
+        on=['Frecuencia (Hz)', 'Estación'],
+        how='outer'
+    )
+
+    # Crear df_alerts_all
+    df_alerts_all = pd.merge(
+        df_5_9_days[['Frecuencia (Hz)', 'Estación'] + [col for col in df_5_9_days.columns if 'Alert.' in col]],
+        df_91_days[['Frecuencia (Hz)', 'Estación'] + [col for col in df_91_days.columns if 'Alert.' in col]],
+        on=['Frecuencia (Hz)', 'Estación'],
+        how='outer'
+    )
+
+    return df_warnings_all, df_alerts_all

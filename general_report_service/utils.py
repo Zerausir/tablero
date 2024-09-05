@@ -334,7 +334,8 @@ def update_heatmap(selected_frequencies: list, stored_data: list) -> Union[go.Fi
 
 
 def update_station_plot_am(selected_frequencies: list, stored_data: list, autorizations_selected: bool,
-                           ciudad: str) -> dcc.Graph:
+                           show_observations: bool, ciudad: str, df_warnings_all: pd.DataFrame,
+                           df_alerts_all: pd.DataFrame) -> dcc.Graph:
     """
     Update station plot for AM based on selected frequencies, stored data, and authorization status.
 
@@ -443,7 +444,9 @@ def update_station_plot_am(selected_frequencies: list, stored_data: list, autori
             'Minus': '#ff9999',  # Example color, similar to 'Pastel1'
             'Valor': '#beaed4',  # Example color, similar to 'Paired'
             'Autorizaciones': '#386cb0',
-            'Autorizacionesbp': '#23b4e8'  # Example color, similar to 'Set2_r'
+            'Autorizacionesbp': '#23b4e8',  # Example color, similar to 'Set2_r'
+            'Advertencias': '#ffa500',  # Naranja para advertencias
+            'Alertas': '#ff0000'  # Rojo para alertas
         }
 
         # Adding area plots with custom colors
@@ -487,6 +490,55 @@ def update_station_plot_am(selected_frequencies: list, stored_data: list, autori
                     text=df_filtered['Oficio']
                 )
             )
+
+        # Convertir las fechas en df_warnings y df_alerts al mismo formato que df_filtered
+        if df_warnings_all is not None and not df_warnings_all.empty:
+            for col in df_warnings_all.columns:
+                if col.startswith('Adv.'):
+                    df_warnings_all[col] = pd.to_datetime(df_warnings_all[col], errors='coerce').dt.strftime('%Y-%m-%d')
+
+        if df_alerts_all is not None and not df_alerts_all.empty:
+            for col in df_alerts_all.columns:
+                if col.startswith('Alert.'):
+                    df_alerts_all[col] = pd.to_datetime(df_alerts_all[col], errors='coerce').dt.strftime('%Y-%m-%d')
+
+        def add_marks(df, frequency, df_filtered, fig, show_observations):
+            if 'show_observations' in show_observations and df is not None and not df.empty:
+                df_station = df[df['Frecuencia (Hz)'] == frequency]
+
+                if not df_station.empty:
+                    for col in df_station.columns:
+                        if col.startswith('Adv.') or col.startswith('Alert.'):
+                            date = df_station[col].iloc[0]
+                            if pd.notna(date):
+                                level_data = df_filtered[df_filtered['Tiempo'] == date]['level']
+                                if not level_data.empty:
+                                    level = level_data.iloc[0]
+
+                                    # Determinar el color basado en el tipo de marca
+                                    if 'Adv.' in col:
+                                        color = 'yellow' if '5 días' in col else 'darkorange'
+                                    elif 'Alert.' in col:
+                                        color = 'red' if '9 días' in col else 'darkred'
+
+                                    fig.add_trace(
+                                        go.Scatter(
+                                            x=[date],
+                                            y=[level],
+                                            mode='markers',
+                                            name=col,  # Usar el nombre de la columna directamente
+                                            marker=dict(color=color, size=15, symbol='triangle-down',
+                                                        line=dict(width=1, color='black')),
+                                            hoverinfo='text',
+                                            hovertext=f'{col}<br>Fecha: {date}<br>Nivel: {level:.2f} dBµV/m',
+                                        )
+                                    )
+            else:
+                print("No se pueden agregar marcadores: datos no válidos o 'show_observations' no seleccionado")
+
+        # Agregar advertencias y alertas
+        add_marks(df_warnings_all, frequency, df_filtered, fig, show_observations)
+        add_marks(df_alerts_all, frequency, df_filtered, fig, show_observations)
 
         # Setting plot layout
         tick_labels = df_filtered['Tiempo'].unique().tolist()
@@ -565,7 +617,8 @@ def update_station_plot_am(selected_frequencies: list, stored_data: list, autori
 
 
 def update_station_plot_fm(selected_frequencies: list, stored_data: list, autorizations_selected: bool,
-                           ciudad: str) -> dcc.Graph:
+                           show_observations: bool, ciudad: str, df_warnings_all: pd.DataFrame,
+                           df_alerts_all: pd.DataFrame) -> dcc.Graph:
     """
     Update station plot for FM based on selected frequencies, stored data, and authorization status.
 
@@ -609,70 +662,57 @@ def update_station_plot_fm(selected_frequencies: list, stored_data: list, autori
 
         def minus(row):
             try:
-                level = float(row['level'])  # Convert level to float
+                level = float(row['level'])
             except ValueError:
-                return 0  # Return 0 if conversion fails
-
+                return 0
             if level > 0 and level < 30:
                 return level
             return 0
 
         def bet(row):
             try:
-                level = float(row['level'])  # Convert level to float
+                level = float(row['level'])
             except ValueError:
-                return 0  # Return 0 if conversion fails
-
+                return 0
             if pot == 0 and bw == 220:
                 if level >= 30 and level < 54:
                     return level
-                return 0
             elif pot == 0 and bw == 200:
                 if level >= 30 and level < 54:
                     return level
-                return 0
             elif pot == 0 and bw == 180:
                 if level >= 30 and level < 48:
                     return level
             elif pot == 1:
                 if level >= 30 and level < 43:
                     return level
-                return 0
             return 0
 
         def plus(row):
             try:
-                level = float(row['level'])  # Convert level to float
+                level = float(row['level'])
             except ValueError:
-                return 0  # Return 0 if conversion fails
-
+                return 0
             if pot == 0 and bw == 220:
                 if level >= 54:
                     return level
-                return 0
             elif pot == 0 and bw == 200:
                 if level >= 54:
                     return level
-                return 0
             elif pot == 0 and bw == 180:
                 if level >= 48:
                     return level
             elif pot == 1:
                 if level >= 43:
                     return level
-                return 0
             return 0
 
         def valor(row):
-            """function to return a specific value if the value in every row of the column 'level' meet the
-            condition"""
             if row['level'] == 0:
                 return 120
             return 0
 
         def aut(row):
-            """function to return a specific value if the value in every row of the column 'level' meet the
-            condition"""
             if row['Fecha_fin'] != 0 and row['level'] == 0 and row['tipo'] == 'S':
                 return 0
             elif row['Fecha_fin'] != 0 and row['level'] != 0 and row['tipo'] == 'S':
@@ -680,31 +720,31 @@ def update_station_plot_fm(selected_frequencies: list, stored_data: list, autori
             return 0
 
         def autbp(row):
-            """function to return a specific value if the value in every row of the column 'level' meet the
-            condition"""
             if row['Fecha_fin'] != 0 and row['level'] == 0 and row['tipo'] == 'BP':
                 return 0
             elif row['Fecha_fin'] != 0 and row['level'] != 0 and row['tipo'] == 'BP':
                 return row['level']
             return 0
 
-        """create a new column in the df_filtered frame for every definition (minus, bet, plus, valor, aut)"""
         df_filtered['minus'] = df_filtered.apply(lambda row: minus(row), axis=1)
         df_filtered['bet'] = df_filtered.apply(lambda row: bet(row), axis=1)
         df_filtered['plus'] = df_filtered.apply(lambda row: plus(row), axis=1)
         df_filtered['valor'] = df_filtered.apply(lambda row: valor(row), axis=1)
         df_filtered['aut'] = df_filtered.apply(lambda row: aut(row), axis=1)
         df_filtered['autbp'] = df_filtered.apply(lambda row: autbp(row), axis=1)
+
         # Creating the plot
         fig = go.Figure()
 
         colors = {
-            'Plus': '#7fc97f',  # Example color, similar to 'Accent'
-            'Bet': '#FFD700',  # Example color, similar to 'Set3_r'
-            'Minus': '#ff9999',  # Example color, similar to 'Pastel1'
-            'Valor': '#beaed4',  # Example color, similar to 'Paired'
-            'Autorizaciones': '#386cb0',  # Example color, similar to 'Set2_r',
-            'Autorizacionesbp': '#23b4e8'  # Example color, similar to 'Set2_r',
+            'Plus': '#7fc97f',
+            'Bet': '#FFD700',
+            'Minus': '#ff9999',
+            'Valor': '#beaed4',
+            'Autorizaciones': '#386cb0',
+            'Autorizacionesbp': '#23b4e8',
+            'Advertencias': '#ffa500',  # Naranja para advertencias
+            'Alertas': '#ff0000'  # Rojo para alertas
         }
 
         if pot == 0 and bw == 220:
@@ -763,9 +803,58 @@ def update_station_plot_fm(selected_frequencies: list, stored_data: list, autori
                 )
             )
 
+        # Convertir las fechas en df_warnings y df_alerts al mismo formato que df_filtered
+        if df_warnings_all is not None and not df_warnings_all.empty:
+            for col in df_warnings_all.columns:
+                if col.startswith('Adv.'):
+                    df_warnings_all[col] = pd.to_datetime(df_warnings_all[col], errors='coerce').dt.strftime('%Y-%m-%d')
+
+        if df_alerts_all is not None and not df_alerts_all.empty:
+            for col in df_alerts_all.columns:
+                if col.startswith('Alert.'):
+                    df_alerts_all[col] = pd.to_datetime(df_alerts_all[col], errors='coerce').dt.strftime('%Y-%m-%d')
+
+        def add_marks(df, frequency, df_filtered, fig, show_observations):
+            if 'show_observations' in show_observations and df is not None and not df.empty:
+                df_station = df[df['Frecuencia (Hz)'] == frequency]
+
+                if not df_station.empty:
+                    for col in df_station.columns:
+                        if col.startswith('Adv.') or col.startswith('Alert.'):
+                            date = df_station[col].iloc[0]
+                            if pd.notna(date):
+                                level_data = df_filtered[df_filtered['Tiempo'] == date]['level']
+                                if not level_data.empty:
+                                    level = level_data.iloc[0]
+
+                                    # Determinar el color basado en el tipo de marca
+                                    if 'Adv.' in col:
+                                        color = 'yellow' if '5 días' in col else 'darkorange'
+                                    elif 'Alert.' in col:
+                                        color = 'red' if '9 días' in col else 'darkred'
+
+                                    fig.add_trace(
+                                        go.Scatter(
+                                            x=[date],
+                                            y=[level],
+                                            mode='markers',
+                                            name=col,  # Usar el nombre de la columna directamente
+                                            marker=dict(color=color, size=15, symbol='triangle-down',
+                                                        line=dict(width=1, color='black')),
+                                            hoverinfo='text',
+                                            hovertext=f'{col}<br>Fecha: {date}<br>Nivel: {level:.2f} dBµV/m',
+                                        )
+                                    )
+            else:
+                print("No se pueden agregar marcadores: datos no válidos o 'show_observations' no seleccionado")
+
+        # Agregar advertencias y alertas
+        add_marks(df_warnings_all, frequency, df_filtered, fig, show_observations)
+        add_marks(df_alerts_all, frequency, df_filtered, fig, show_observations)
+
         # Setting plot layout
         tick_labels = df_filtered['Tiempo'].unique().tolist()
-        tick_positions = list(range(len(tick_labels)))  # Convert range to list
+        tick_positions = list(range(len(tick_labels)))
 
         fig.update_layout(
             title=f'Ciudad: {ciudad}, Estación: {nombre}, Frecuencia: {frequency} Hz',
@@ -800,7 +889,7 @@ def update_station_plot_fm(selected_frequencies: list, stored_data: list, autori
         # Adding annotations for initial and final dates of the authorization
         if autorizations_selected:
             for mark_time in df_filtered.Fecha_inicio.unique():
-                if mark_time and mark_time != 0:  # Ensure this is the correct condition
+                if mark_time and mark_time != 0:
                     try:
                         mark_index = tick_labels.index(mark_time)
                         fig.add_annotation(
@@ -808,16 +897,16 @@ def update_station_plot_fm(selected_frequencies: list, stored_data: list, autori
                             text=f'Inicio: {mark_time}',
                             showarrow=True,
                             arrowhead=1,
-                            ax=0, ay=-60,  # Arrow direction
-                            bgcolor="white",  # Background color of the text box
-                            bordercolor="black",  # Border color of the text box
-                            font=dict(color="black")  # Text font color
+                            ax=0, ay=-60,
+                            bgcolor="white",
+                            bordercolor="black",
+                            font=dict(color="black")
                         )
                     except ValueError:
-                        pass  # If mark_time is not in tick_labels, skip
+                        pass
 
             for mark_time in df_filtered.Fecha_fin.unique():
-                if mark_time and mark_time != 0:  # Ensure this is the correct condition
+                if mark_time and mark_time != 0:
                     try:
                         mark_index = tick_labels.index(mark_time)
                         fig.add_annotation(
@@ -825,13 +914,13 @@ def update_station_plot_fm(selected_frequencies: list, stored_data: list, autori
                             text=f'Fin: {mark_time}',
                             showarrow=True,
                             arrowhead=1,
-                            ax=0, ay=-30,  # Arrow direction
-                            bgcolor="white",  # Background color of the text box
-                            bordercolor="black",  # Border color of the text box
-                            font=dict(color="black")  # Text font color
+                            ax=0, ay=-30,
+                            bgcolor="white",
+                            bordercolor="black",
+                            font=dict(color="black")
                         )
                     except ValueError:
-                        pass  # If mark_time is not in tick_labels, skip
+                        pass
 
         plots.append(dcc.Graph(figure=fig))
 
@@ -840,7 +929,8 @@ def update_station_plot_fm(selected_frequencies: list, stored_data: list, autori
 
 
 def update_station_plot_tv(selected_frequencies: list, stored_data: list, autorizations_selected: bool,
-                           ciudad: str) -> dcc.Graph:
+                           show_observations: bool, ciudad: str, df_warnings_all: pd.DataFrame,
+                           df_alerts_all: pd.DataFrame) -> dcc.Graph:
     """
     Update station plot for TV based on selected frequencies, stored data, and authorization status.
 
@@ -966,7 +1056,9 @@ def update_station_plot_tv(selected_frequencies: list, stored_data: list, autori
             'Minus': '#ff9999',  # Example color, similar to 'Pastel1'
             'Valor': '#beaed4',  # Example color, similar to 'Paired'
             'Autorizaciones': '#386cb0',  # Example color, similar to 'Set2_r',
-            'Autorizacionesbp': '#23b4e8'  # Example color, similar to 'Set2_r',
+            'Autorizacionesbp': '#23b4e8',  # Example color, similar to 'Set2_r',
+            'Advertencias': '#ffa500',  # Naranja para advertencias
+            'Alertas': '#ff0000'  # Rojo para alertas
         }
 
         if df_filtered['freq'].iloc[0] >= 54000000 and df_filtered['freq'].iloc[0] <= 88000000 and andig == 0:
@@ -1024,6 +1116,55 @@ def update_station_plot_tv(selected_frequencies: list, stored_data: list, autori
                     text=df_filtered['Oficio']
                 )
             )
+
+        # Convertir las fechas en df_warnings y df_alerts al mismo formato que df_filtered
+        if df_warnings_all is not None and not df_warnings_all.empty:
+            for col in df_warnings_all.columns:
+                if col.startswith('Adv.'):
+                    df_warnings_all[col] = pd.to_datetime(df_warnings_all[col], errors='coerce').dt.strftime('%Y-%m-%d')
+
+        if df_alerts_all is not None and not df_alerts_all.empty:
+            for col in df_alerts_all.columns:
+                if col.startswith('Alert.'):
+                    df_alerts_all[col] = pd.to_datetime(df_alerts_all[col], errors='coerce').dt.strftime('%Y-%m-%d')
+
+        def add_marks(df, frequency, df_filtered, fig, show_observations):
+            if 'show_observations' in show_observations and df is not None and not df.empty:
+                df_station = df[df['Frecuencia (Hz)'] == frequency]
+
+                if not df_station.empty:
+                    for col in df_station.columns:
+                        if col.startswith('Adv.') or col.startswith('Alert.'):
+                            date = df_station[col].iloc[0]
+                            if pd.notna(date):
+                                level_data = df_filtered[df_filtered['Tiempo'] == date]['level']
+                                if not level_data.empty:
+                                    level = level_data.iloc[0]
+
+                                    # Determinar el color basado en el tipo de marca
+                                    if 'Adv.' in col:
+                                        color = 'yellow' if '5 días' in col else 'darkorange'
+                                    elif 'Alert.' in col:
+                                        color = 'red' if '9 días' in col else 'darkred'
+
+                                    fig.add_trace(
+                                        go.Scatter(
+                                            x=[date],
+                                            y=[level],
+                                            mode='markers',
+                                            name=col,  # Usar el nombre de la columna directamente
+                                            marker=dict(color=color, size=15, symbol='triangle-down',
+                                                        line=dict(width=1, color='black')),
+                                            hoverinfo='text',
+                                            hovertext=f'{col}<br>Fecha: {date}<br>Nivel: {level:.2f} dBµV/m',
+                                        )
+                                    )
+            else:
+                print("No se pueden agregar marcadores: datos no válidos o 'show_observations' no seleccionado")
+
+        # Agregar advertencias y alertas
+        add_marks(df_warnings_all, frequency, df_filtered, fig, show_observations)
+        add_marks(df_alerts_all, frequency, df_filtered, fig, show_observations)
 
         # Setting plot layout
         tick_labels = df_filtered['Tiempo'].unique().tolist()
@@ -1111,10 +1252,6 @@ def process_warnings_data(df_warnings):
     Returns:
         tuple: Three DataFrames for 5/9 days, 60 days, and 91 days warnings/alerts.
     """
-    print("DataFrame al inicio de process_warnings_data:")
-    print(df_warnings.head())
-    print(df_warnings.columns)
-    print(df_warnings.dtypes)
 
     if df_warnings.empty:
         return pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
@@ -1125,11 +1262,12 @@ def process_warnings_data(df_warnings):
     # Filtrar las filas que no contienen "COLOMBIANA" en la columna "Estación"
     df_warnings = df_warnings[~df_warnings['Estación'].str.contains('COLOMBIANA', case=False, na=False)]
 
-    df_warnings['Tiempo'] = pd.to_datetime(df_warnings['Tiempo'])
+    # Asegurarse de que 'Tiempo' sea datetime
+    df_warnings['Tiempo'] = pd.to_datetime(df_warnings['Tiempo'], errors='coerce')
     df_warnings = df_warnings.sort_values(['Estación', 'Frecuencia (Hz)', 'Tiempo'])
 
     def count_continuous_days(group):
-        return group.groupby((group.diff() != pd.Timedelta(days=1)).cumsum()).cumcount() + 1
+        return group.groupby((group.diff().dt.days != 1).cumsum()).cumcount() + 1
 
     try:
         df_warnings['Días continuos'] = df_warnings.groupby(['Estación', 'Frecuencia (Hz)'])['Tiempo'].transform(
@@ -1147,12 +1285,12 @@ def process_warnings_data(df_warnings):
         for i in range(1, warnings.max() + 1 if not warnings.empty else 1):
             col_name = f'{warning_prefix} {i} ({days_warning} días)'
             df[col_name] = df[df['Días continuos'] == days_warning].groupby(['Estación', 'Frecuencia (Hz)']).nth(i - 1)[
-                'Tiempo']
+                'Tiempo'].dt.strftime('%Y-%m-%d')
 
         for i in range(1, alerts.max() + 1 if not alerts.empty else 1):
             col_name = f'{alert_prefix} {i} ({days_alert} días)'
             df[col_name] = df[df['Días continuos'] == days_alert].groupby(['Estación', 'Frecuencia (Hz)']).nth(i - 1)[
-                'Tiempo']
+                'Tiempo'].dt.strftime('%Y-%m-%d')
 
         return df
 
@@ -1175,10 +1313,8 @@ def process_warnings_data(df_warnings):
     df_91_days = df_91_days.groupby(['Frecuencia (Hz)', 'Estación']).first().reset_index()[
         columns_to_keep + [col for col in df_91_days.columns if 'Alert.' in col]]
 
-    print("DataFrames procesados:")
-    print("5_9_days shape:", df_5_9_days.shape)
-    print("60_days shape:", df_60_days.shape)
-    print("91_days shape:", df_91_days.shape)
+    # Convertir 'Tiempo' de vuelta a string en formato 'YYYY-MM-DD'
+    df_warnings['Tiempo'] = df_warnings['Tiempo'].dt.strftime('%Y-%m-%d')
 
     return df_5_9_days, df_60_days, df_91_days
 
