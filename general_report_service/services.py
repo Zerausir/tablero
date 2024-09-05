@@ -499,11 +499,11 @@ def marks_rtv_warnings_data(request):
     if df_warnings is None or df_warnings.empty:
         return pd.DataFrame(), pd.DataFrame()
 
-    df_5_9_days, df_60_days, df_91_days = process_warnings_data(df_warnings)
+    df_5_days, df_9_days, df_60_days, df_91_days = process_warnings_data(df_warnings)
 
     # Crear df_warnings_all
     df_warnings_all = pd.merge(
-        df_5_9_days[['Frecuencia (Hz)', 'Estación'] + [col for col in df_5_9_days.columns if 'Adv.' in col]],
+        df_5_days[['Frecuencia (Hz)', 'Estación'] + [col for col in df_5_days.columns if 'Adv.' in col]],
         df_60_days[['Frecuencia (Hz)', 'Estación'] + [col for col in df_60_days.columns if 'Adv.' in col]],
         on=['Frecuencia (Hz)', 'Estación'],
         how='outer'
@@ -511,7 +511,7 @@ def marks_rtv_warnings_data(request):
 
     # Crear df_alerts_all
     df_alerts_all = pd.merge(
-        df_5_9_days[['Frecuencia (Hz)', 'Estación'] + [col for col in df_5_9_days.columns if 'Alert.' in col]],
+        df_9_days[['Frecuencia (Hz)', 'Estación'] + [col for col in df_9_days.columns if 'Alert.' in col]],
         df_91_days[['Frecuencia (Hz)', 'Estación'] + [col for col in df_91_days.columns if 'Alert.' in col]],
         on=['Frecuencia (Hz)', 'Estación'],
         how='outer'

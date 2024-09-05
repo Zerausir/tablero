@@ -458,8 +458,8 @@ def update_warnings_tables(start_date, end_date, city):
         if df_warnings.empty:
             return "No se encontraron datos de advertencias para los parámetros seleccionados."
 
-        df_5_9_days, df_60_days, df_91_days = process_warnings_data(df_warnings)
-        tables = create_warnings_tables(df_5_9_days, df_60_days, df_91_days)
+        df_5_days, df_9_days, df_60_days, df_91_days = process_warnings_data(df_warnings)
+        tables = create_warnings_tables(df_5_days, df_9_days, df_60_days, df_91_days)
         return html.Div(tables)
     except Exception as e:
         import traceback

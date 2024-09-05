@@ -1294,20 +1294,23 @@ def process_warnings_data(df_warnings):
 
         return df
 
-    df_5_9_days = generate_warning_alert_columns(df_warnings.copy(), 5, 9, 'Adv.', 'Alert.')
+    df_5_days = generate_warning_alert_columns(df_warnings.copy(), 5, 5, 'Adv.', 'Alert.')
+    df_9_days = generate_warning_alert_columns(df_warnings.copy(), 9, 9, 'Adv.', 'Alert.')
     df_60_days = generate_warning_alert_columns(df_warnings.copy(), 60, 60, 'Adv.', 'Adv.')
     df_91_days = generate_warning_alert_columns(df_warnings.copy(), 91, 91, 'Alert.', 'Alert.')
 
     columns_to_keep = ['Frecuencia (Hz)', 'Estación', 'Ciudad', 'Servicio', 'Analógico/Digital']
 
     # Filtrar solo las estaciones con advertencias o alertas
-    df_5_9_days = df_5_9_days[
-        df_5_9_days[[col for col in df_5_9_days.columns if 'Adv.' in col or 'Alert.' in col]].notna().any(axis=1)]
+    df_5_days = df_5_days[df_5_days[[col for col in df_5_days.columns if 'Adv.' in col]].notna().any(axis=1)]
+    df_9_days = df_9_days[df_9_days[[col for col in df_9_days.columns if 'Alert.' in col]].notna().any(axis=1)]
     df_60_days = df_60_days[df_60_days[[col for col in df_60_days.columns if 'Adv.' in col]].notna().any(axis=1)]
     df_91_days = df_91_days[df_91_days[[col for col in df_91_days.columns if 'Alert.' in col]].notna().any(axis=1)]
 
-    df_5_9_days = df_5_9_days.groupby(['Frecuencia (Hz)', 'Estación']).first().reset_index()[
-        columns_to_keep + [col for col in df_5_9_days.columns if 'Adv.' in col or 'Alert.' in col]]
+    df_5_days = df_5_days.groupby(['Frecuencia (Hz)', 'Estación']).first().reset_index()[
+        columns_to_keep + [col for col in df_5_days.columns if 'Adv.' in col]]
+    df_9_days = df_9_days.groupby(['Frecuencia (Hz)', 'Estación']).first().reset_index()[
+        columns_to_keep + [col for col in df_9_days.columns if 'Alert.' in col]]
     df_60_days = df_60_days.groupby(['Frecuencia (Hz)', 'Estación']).first().reset_index()[
         columns_to_keep + [col for col in df_60_days.columns if 'Adv.' in col]]
     df_91_days = df_91_days.groupby(['Frecuencia (Hz)', 'Estación']).first().reset_index()[
@@ -1316,10 +1319,10 @@ def process_warnings_data(df_warnings):
     # Convertir 'Tiempo' de vuelta a string en formato 'YYYY-MM-DD'
     df_warnings['Tiempo'] = df_warnings['Tiempo'].dt.strftime('%Y-%m-%d')
 
-    return df_5_9_days, df_60_days, df_91_days
+    return df_5_days, df_9_days, df_60_days, df_91_days
 
 
-def create_warnings_tables(df_5_9_days, df_60_days, df_91_days):
+def create_warnings_tables(df_5_days, df_9_days, df_60_days, df_91_days):
     """
     Create Dash DataTables for warnings and alerts.
 
@@ -1333,7 +1336,8 @@ def create_warnings_tables(df_5_9_days, df_60_days, df_91_days):
     """
     tables = []
     for i, (df, title) in enumerate([
-        (df_5_9_days, "Advertencias (5 días) y Alertas (9 días)"),
+        (df_5_days, "Advertencias de 5 días"),
+        (df_9_days, "Alertas de 9 días"),
         (df_60_days, "Advertencias de 60 días"),
         (df_91_days, "Alertas de 91 días")
     ], 1):
@@ -1382,7 +1386,7 @@ def create_warnings_tables(df_5_9_days, df_60_days, df_91_days):
                 html.P("No hay datos para mostrar en esta tabla.")
             ]))
 
-    if all(df.empty for df in [df_5_9_days, df_60_days, df_91_days]):
+    if all(df.empty for df in [df_5_days, df_9_days, df_60_days, df_91_days]):
         return [html.Div("No se encontraron advertencias ni alertas para los parámetros seleccionados.")]
 
     return tables
