@@ -43,11 +43,19 @@ def define_app_layout():
             style={'margin': '10px'}
         ),
         dcc.Checklist(
-            id='checkbox-observations',
+            id='checkbox-warnings',
             options=[
-                {'label': 'Observaciones', 'value': 'show_observations'}
+                {'label': 'Advertencias', 'value': 'show_warnings'}
             ],
-            value=['show_observations'],  # Por defecto, las observaciones están visibles
+            value=['show_warnings'],  # Por defecto, las observaciones están visibles
+            style={'margin': '10px'}
+        ),
+        dcc.Checklist(
+            id='checkbox-alerts',
+            options=[
+                {'label': 'Alertas', 'value': 'show_alerts'}
+            ],
+            value=['show_alerts'],
             style={'margin': '10px'}
         ),
         dcc.Loading(
@@ -347,21 +355,44 @@ def register_callbacks():
 
 
 @app.callback(
-    Output('station-plots-container-fm', 'children'),
-    [Input('frequency-dropdown1', 'value'),
-     Input('store-df-original1', 'data'),
+    Output('station-plots-container-am', 'children'),
+    [Input('frequency-dropdown3', 'value'),
+     Input('store-df-original3', 'data'),
      Input('checkbox', 'value'),
-     Input('checkbox-observations', 'value'),
+     Input('checkbox-warnings', 'value'),
+     Input('checkbox-alerts', 'value'),
      Input('city-dropdown', 'value')],
     [State('store-df-warnings', 'data'),
      State('store-df-alerts', 'data')]
 )
-def update_fm_station_plot(freq1, data1, autorizations, show_observations, ciudad, warnings_data, alerts_data):
+def update_am_station_plot(freq3, data3, autorizations, show_warnings, show_alerts, ciudad, warnings_data, alerts_data):
+    if freq3 and data3:
+        df_warnings = pd.DataFrame(warnings_data) if warnings_data else None
+        df_alerts = pd.DataFrame(alerts_data) if alerts_data else None
+        return html.Div(
+            update_station_plot_am(freq3, data3, autorizations, show_warnings, show_alerts, ciudad, df_warnings,
+                                   df_alerts))
+    return html.Div()
+
+
+@app.callback(
+    Output('station-plots-container-fm', 'children'),
+    [Input('frequency-dropdown1', 'value'),
+     Input('store-df-original1', 'data'),
+     Input('checkbox', 'value'),
+     Input('checkbox-warnings', 'value'),
+     Input('checkbox-alerts', 'value'),
+     Input('city-dropdown', 'value')],
+    [State('store-df-warnings', 'data'),
+     State('store-df-alerts', 'data')]
+)
+def update_fm_station_plot(freq1, data1, autorizations, show_warnings, show_alerts, ciudad, warnings_data, alerts_data):
     if freq1 and data1:
         df_warnings = pd.DataFrame(warnings_data) if warnings_data else None
         df_alerts = pd.DataFrame(alerts_data) if alerts_data else None
         return html.Div(
-            update_station_plot_fm(freq1, data1, autorizations, show_observations, ciudad, df_warnings, df_alerts))
+            update_station_plot_fm(freq1, data1, autorizations, show_warnings, show_alerts, ciudad, df_warnings,
+                                   df_alerts))
     return html.Div()
 
 
@@ -370,36 +401,19 @@ def update_fm_station_plot(freq1, data1, autorizations, show_observations, ciuda
     [Input('frequency-dropdown2', 'value'),
      Input('store-df-original2', 'data'),
      Input('checkbox', 'value'),
-     Input('checkbox-observations', 'value'),
+     Input('checkbox-warnings', 'value'),
+     Input('checkbox-alerts', 'value'),
      Input('city-dropdown', 'value')],
     [State('store-df-warnings', 'data'),
      State('store-df-alerts', 'data')]
 )
-def update_tv_station_plot(freq2, data2, autorizations, show_observations, ciudad, warnings_data, alerts_data):
+def update_tv_station_plot(freq2, data2, autorizations, show_warnings, show_alerts, ciudad, warnings_data, alerts_data):
     if freq2 and data2:
         df_warnings = pd.DataFrame(warnings_data) if warnings_data else None
         df_alerts = pd.DataFrame(alerts_data) if alerts_data else None
         return html.Div(
-            update_station_plot_tv(freq2, data2, autorizations, show_observations, ciudad, df_warnings, df_alerts))
-    return html.Div()
-
-
-@app.callback(
-    Output('station-plots-container-am', 'children'),
-    [Input('frequency-dropdown3', 'value'),
-     Input('store-df-original3', 'data'),
-     Input('checkbox', 'value'),
-     Input('checkbox-observations', 'value'),
-     Input('city-dropdown', 'value')],
-    [State('store-df-warnings', 'data'),
-     State('store-df-alerts', 'data')]
-)
-def update_am_station_plot(freq3, data3, autorizations, show_observations, ciudad, warnings_data, alerts_data):
-    if freq3 and data3:
-        df_warnings = pd.DataFrame(warnings_data) if warnings_data else None
-        df_alerts = pd.DataFrame(alerts_data) if alerts_data else None
-        return html.Div(
-            update_station_plot_am(freq3, data3, autorizations, show_observations, ciudad, df_warnings, df_alerts))
+            update_station_plot_tv(freq2, data2, autorizations, show_warnings, show_alerts, ciudad, df_warnings,
+                                   df_alerts))
     return html.Div()
 
 

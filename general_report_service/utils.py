@@ -334,7 +334,7 @@ def update_heatmap(selected_frequencies: list, stored_data: list) -> Union[go.Fi
 
 
 def update_station_plot_am(selected_frequencies: list, stored_data: list, autorizations_selected: bool,
-                           show_observations: bool, ciudad: str, df_warnings_all: pd.DataFrame,
+                           show_warnings: bool, show_alerts: bool, ciudad: str, df_warnings_all: pd.DataFrame,
                            df_alerts_all: pd.DataFrame) -> dcc.Graph:
     """
     Update station plot for AM based on selected frequencies, stored data, and authorization status.
@@ -502,43 +502,48 @@ def update_station_plot_am(selected_frequencies: list, stored_data: list, autori
                 if col.startswith('Alert.'):
                     df_alerts_all[col] = pd.to_datetime(df_alerts_all[col], errors='coerce').dt.strftime('%Y-%m-%d')
 
-        def add_marks(df, frequency, df_filtered, fig, show_observations):
-            if 'show_observations' in show_observations and df is not None and not df.empty:
+        def add_marks(df, frequency, df_filtered, fig, show_warnings, show_alerts, is_warning=True):
+            if df is not None and not df.empty:
                 df_station = df[df['Frecuencia (Hz)'] == frequency]
 
                 if not df_station.empty:
                     for col in df_station.columns:
-                        if col.startswith('Adv.') or col.startswith('Alert.'):
-                            date = df_station[col].iloc[0]
-                            if pd.notna(date):
-                                level_data = df_filtered[df_filtered['Tiempo'] == date]['level']
+                        if col.endswith('_inicio'):
+                            col_base = col[:-7]
+                            date_inicio = df_station[col].iloc[0]
+                            date_fin = df_station[col_base + '_fin'].iloc[0]
+                            if pd.notna(date_inicio) and pd.notna(date_fin):
+                                level_data = df_filtered[df_filtered['Tiempo'] == date_fin]['level']
                                 if not level_data.empty:
                                     level = level_data.iloc[0]
 
-                                    # Determinar el color basado en el tipo de marca
-                                    if 'Adv.' in col:
-                                        color = 'yellow' if '5 días' in col else 'darkorange'
-                                    elif 'Alert.' in col:
-                                        color = 'red' if '9 días' in col else 'darkred'
+                                    show_mark = False
+                                    if is_warning and show_warnings:
+                                        color = 'yellow' if '5 días' in col_base else 'darkorange'
+                                        show_mark = True
+                                    elif not is_warning and show_alerts:
+                                        color = 'red' if '9 días' in col_base else 'darkred'
+                                        show_mark = True
 
-                                    fig.add_trace(
-                                        go.Scatter(
-                                            x=[date],
-                                            y=[level],
-                                            mode='markers',
-                                            name=col,  # Usar el nombre de la columna directamente
-                                            marker=dict(color=color, size=15, symbol='triangle-down',
-                                                        line=dict(width=1, color='black')),
-                                            hoverinfo='text',
-                                            hovertext=f'{col}<br>Fecha: {date}<br>Nivel: {level:.2f} dBµV/m',
+                                    if show_mark:
+                                        fig.add_trace(
+                                            go.Scatter(
+                                                x=[date_fin],
+                                                y=[level],
+                                                mode='markers',
+                                                name=f"{col_base}: {date_inicio} al {date_fin}",
+                                                marker=dict(color=color, size=15, symbol='triangle-down',
+                                                            line=dict(width=1, color='black')),
+                                                hoverinfo='text',
+                                                hovertext=f'{col_base}<br>Inicio: {date_inicio}<br>Fin: {date_fin}<br>Nivel: {level:.2f} dBµV/m',
+                                            )
                                         )
-                                    )
             else:
                 print("No se pueden agregar marcadores: datos no válidos o 'show_observations' no seleccionado")
 
         # Agregar advertencias y alertas
-        add_marks(df_warnings_all, frequency, df_filtered, fig, show_observations)
-        add_marks(df_alerts_all, frequency, df_filtered, fig, show_observations)
+        add_marks(df_warnings_all, frequency, df_filtered, fig, show_warnings, show_alerts, is_warning=True)
+        add_marks(df_alerts_all, frequency, df_filtered, fig, show_warnings, show_alerts, is_warning=False)
 
         # Setting plot layout
         tick_labels = df_filtered['Tiempo'].unique().tolist()
@@ -617,7 +622,7 @@ def update_station_plot_am(selected_frequencies: list, stored_data: list, autori
 
 
 def update_station_plot_fm(selected_frequencies: list, stored_data: list, autorizations_selected: bool,
-                           show_observations: bool, ciudad: str, df_warnings_all: pd.DataFrame,
+                           show_warnings: bool, show_alerts: bool, ciudad: str, df_warnings_all: pd.DataFrame,
                            df_alerts_all: pd.DataFrame) -> dcc.Graph:
     """
     Update station plot for FM based on selected frequencies, stored data, and authorization status.
@@ -814,43 +819,49 @@ def update_station_plot_fm(selected_frequencies: list, stored_data: list, autori
                 if col.startswith('Alert.'):
                     df_alerts_all[col] = pd.to_datetime(df_alerts_all[col], errors='coerce').dt.strftime('%Y-%m-%d')
 
-        def add_marks(df, frequency, df_filtered, fig, show_observations):
-            if 'show_observations' in show_observations and df is not None and not df.empty:
+        def add_marks(df, frequency, df_filtered, fig, show_warnings, show_alerts, is_warning=True):
+            if df is not None and not df.empty:
                 df_station = df[df['Frecuencia (Hz)'] == frequency]
 
                 if not df_station.empty:
                     for col in df_station.columns:
-                        if col.startswith('Adv.') or col.startswith('Alert.'):
-                            date = df_station[col].iloc[0]
-                            if pd.notna(date):
-                                level_data = df_filtered[df_filtered['Tiempo'] == date]['level']
+                        if col.endswith('_inicio'):
+                            col_base = col[:-7]
+                            date_inicio = df_station[col].iloc[0]
+                            date_fin = df_station[col_base + '_fin'].iloc[0]
+                            if pd.notna(date_inicio) and pd.notna(date_fin):
+                                level_data = df_filtered[df_filtered['Tiempo'] == date_fin]['level']
                                 if not level_data.empty:
                                     level = level_data.iloc[0]
 
-                                    # Determinar el color basado en el tipo de marca
-                                    if 'Adv.' in col:
-                                        color = 'yellow' if '5 días' in col else 'darkorange'
-                                    elif 'Alert.' in col:
-                                        color = 'red' if '9 días' in col else 'darkred'
+                                    show_mark = False
+                                    if is_warning and show_warnings:
+                                        color = 'yellow' if '5 días' in col_base else 'darkorange'
+                                        show_mark = True
+                                    elif not is_warning and show_alerts:
+                                        color = 'red' if '9 días' in col_base else 'darkred'
+                                        show_mark = True
 
-                                    fig.add_trace(
-                                        go.Scatter(
-                                            x=[date],
-                                            y=[level],
-                                            mode='markers',
-                                            name=col,  # Usar el nombre de la columna directamente
-                                            marker=dict(color=color, size=15, symbol='triangle-down',
-                                                        line=dict(width=1, color='black')),
-                                            hoverinfo='text',
-                                            hovertext=f'{col}<br>Fecha: {date}<br>Nivel: {level:.2f} dBµV/m',
+                                    if show_mark:
+                                        fig.add_trace(
+                                            go.Scatter(
+                                                x=[date_fin],
+                                                y=[level],
+                                                mode='markers',
+                                                name=f"{col_base}: {date_inicio} al {date_fin}",
+                                                marker=dict(color=color, size=15, symbol='triangle-down',
+                                                            line=dict(width=1, color='black')),
+                                                hoverinfo='text',
+                                                hovertext=f'{col_base}<br>Inicio: {date_inicio}<br>Fin: {date_fin}<br>Nivel: {level:.2f} dBµV/m',
+                                            )
                                         )
-                                    )
             else:
                 print("No se pueden agregar marcadores: datos no válidos o 'show_observations' no seleccionado")
 
-        # Agregar advertencias y alertas
-        add_marks(df_warnings_all, frequency, df_filtered, fig, show_observations)
-        add_marks(df_alerts_all, frequency, df_filtered, fig, show_observations)
+            # Agregar advertencias y alertas
+
+        add_marks(df_warnings_all, frequency, df_filtered, fig, show_warnings, show_alerts, is_warning=True)
+        add_marks(df_alerts_all, frequency, df_filtered, fig, show_warnings, show_alerts, is_warning=False)
 
         # Setting plot layout
         tick_labels = df_filtered['Tiempo'].unique().tolist()
@@ -929,7 +940,7 @@ def update_station_plot_fm(selected_frequencies: list, stored_data: list, autori
 
 
 def update_station_plot_tv(selected_frequencies: list, stored_data: list, autorizations_selected: bool,
-                           show_observations: bool, ciudad: str, df_warnings_all: pd.DataFrame,
+                           show_warnings: bool, show_alerts: bool, ciudad: str, df_warnings_all: pd.DataFrame,
                            df_alerts_all: pd.DataFrame) -> dcc.Graph:
     """
     Update station plot for TV based on selected frequencies, stored data, and authorization status.
@@ -1128,43 +1139,49 @@ def update_station_plot_tv(selected_frequencies: list, stored_data: list, autori
                 if col.startswith('Alert.'):
                     df_alerts_all[col] = pd.to_datetime(df_alerts_all[col], errors='coerce').dt.strftime('%Y-%m-%d')
 
-        def add_marks(df, frequency, df_filtered, fig, show_observations):
-            if 'show_observations' in show_observations and df is not None and not df.empty:
+        def add_marks(df, frequency, df_filtered, fig, show_warnings, show_alerts, is_warning=True):
+            if df is not None and not df.empty:
                 df_station = df[df['Frecuencia (Hz)'] == frequency]
 
                 if not df_station.empty:
                     for col in df_station.columns:
-                        if col.startswith('Adv.') or col.startswith('Alert.'):
-                            date = df_station[col].iloc[0]
-                            if pd.notna(date):
-                                level_data = df_filtered[df_filtered['Tiempo'] == date]['level']
+                        if col.endswith('_inicio'):
+                            col_base = col[:-7]
+                            date_inicio = df_station[col].iloc[0]
+                            date_fin = df_station[col_base + '_fin'].iloc[0]
+                            if pd.notna(date_inicio) and pd.notna(date_fin):
+                                level_data = df_filtered[df_filtered['Tiempo'] == date_fin]['level']
                                 if not level_data.empty:
                                     level = level_data.iloc[0]
 
-                                    # Determinar el color basado en el tipo de marca
-                                    if 'Adv.' in col:
-                                        color = 'yellow' if '5 días' in col else 'darkorange'
-                                    elif 'Alert.' in col:
-                                        color = 'red' if '9 días' in col else 'darkred'
+                                    show_mark = False
+                                    if is_warning and show_warnings:
+                                        color = 'yellow' if '5 días' in col_base else 'darkorange'
+                                        show_mark = True
+                                    elif not is_warning and show_alerts:
+                                        color = 'red' if '9 días' in col_base else 'darkred'
+                                        show_mark = True
 
-                                    fig.add_trace(
-                                        go.Scatter(
-                                            x=[date],
-                                            y=[level],
-                                            mode='markers',
-                                            name=col,  # Usar el nombre de la columna directamente
-                                            marker=dict(color=color, size=15, symbol='triangle-down',
-                                                        line=dict(width=1, color='black')),
-                                            hoverinfo='text',
-                                            hovertext=f'{col}<br>Fecha: {date}<br>Nivel: {level:.2f} dBµV/m',
+                                    if show_mark:
+                                        fig.add_trace(
+                                            go.Scatter(
+                                                x=[date_fin],
+                                                y=[level],
+                                                mode='markers',
+                                                name=f"{col_base}: {date_inicio} al {date_fin}",
+                                                marker=dict(color=color, size=15, symbol='triangle-down',
+                                                            line=dict(width=1, color='black')),
+                                                hoverinfo='text',
+                                                hovertext=f'{col_base}<br>Inicio: {date_inicio}<br>Fin: {date_fin}<br>Nivel: {level:.2f} dBµV/m',
+                                            )
                                         )
-                                    )
             else:
                 print("No se pueden agregar marcadores: datos no válidos o 'show_observations' no seleccionado")
 
-        # Agregar advertencias y alertas
-        add_marks(df_warnings_all, frequency, df_filtered, fig, show_observations)
-        add_marks(df_alerts_all, frequency, df_filtered, fig, show_observations)
+            # Agregar advertencias y alertas
+
+        add_marks(df_warnings_all, frequency, df_filtered, fig, show_warnings, show_alerts, is_warning=True)
+        add_marks(df_alerts_all, frequency, df_filtered, fig, show_warnings, show_alerts, is_warning=False)
 
         # Setting plot layout
         tick_labels = df_filtered['Tiempo'].unique().tolist()
@@ -1250,11 +1267,11 @@ def process_warnings_data(df_warnings):
         df_warnings (pd.DataFrame): DataFrame with warnings data.
 
     Returns:
-        tuple: Three DataFrames for 5/9 days, 60 days, and 91 days warnings/alerts.
+        tuple: Four DataFrames for 5 days warnings, 9 days alerts, 60 days warnings, and 91 days alerts.
     """
 
     if df_warnings.empty:
-        return pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
+        return pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
 
     if 'Tiempo' not in df_warnings.columns:
         raise ValueError("La columna 'Tiempo' no está presente en el DataFrame")
@@ -1285,12 +1302,16 @@ def process_warnings_data(df_warnings):
         for i in range(1, warnings.max() + 1 if not warnings.empty else 1):
             col_name = f'{warning_prefix} {i} ({days_warning} días)'
             df[col_name] = df[df['Días continuos'] == days_warning].groupby(['Estación', 'Frecuencia (Hz)']).nth(i - 1)[
-                'Tiempo'].dt.strftime('%Y-%m-%d')
+                'Tiempo']
+            df[f'{col_name}_inicio'] = (df[col_name] - pd.Timedelta(days=days_warning - 1)).dt.strftime('%Y-%m-%d')
+            df[f'{col_name}_fin'] = df[col_name].dt.strftime('%Y-%m-%d')
 
         for i in range(1, alerts.max() + 1 if not alerts.empty else 1):
             col_name = f'{alert_prefix} {i} ({days_alert} días)'
             df[col_name] = df[df['Días continuos'] == days_alert].groupby(['Estación', 'Frecuencia (Hz)']).nth(i - 1)[
-                'Tiempo'].dt.strftime('%Y-%m-%d')
+                'Tiempo']
+            df[f'{col_name}_inicio'] = (df[col_name] - pd.Timedelta(days=days_alert - 1)).dt.strftime('%Y-%m-%d')
+            df[f'{col_name}_fin'] = df[col_name].dt.strftime('%Y-%m-%d')
 
         return df
 
@@ -1327,7 +1348,8 @@ def create_warnings_tables(df_5_days, df_9_days, df_60_days, df_91_days):
     Create Dash DataTables for warnings and alerts.
 
     Args:
-        df_5_9_days (pd.DataFrame): DataFrame with 5 days warnings and 9 days alerts.
+        df_5_days (pd.DataFrame): DataFrame with 5 days warnings.
+        df_9_days (pd.DataFrame): DataFrame with 9 days alerts.
         df_60_days (pd.DataFrame): DataFrame with 60 days warnings.
         df_91_days (pd.DataFrame): DataFrame with 91 days alerts.
 
@@ -1357,6 +1379,13 @@ def create_warnings_tables(df_5_days, df_9_days, df_60_days, df_91_days):
                         'backgroundColor': '#FFCCCB',  # Rojo tenue para alertas
                         'color': 'black'
                     })
+
+            # Combinar las columnas de inicio y fin en una sola columna
+            for col in df.columns:
+                if col.endswith('_inicio'):
+                    col_base = col[:-7]
+                    df[col_base] = df[col] + ' al ' + df[col_base + '_fin']
+                    df = df.drop(columns=[col, col_base + '_fin'])
 
             table = dash_table.DataTable(
                 id=f'warnings-table-{i}',
