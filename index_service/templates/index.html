@@ -1,5 +1,4 @@
 {% load static %}
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -8,11 +7,48 @@
     <link rel="stylesheet" href="{% static 'css/outer.css' %}">
 </head>
 <body>
-    <h1>Panel de Opciones</h1>
-    <ul>
-        {% for option in options %}
-            <li><a href="/{{ option|slugify }}/">{{ option }}</a></li>
-        {% endfor %}
-    </ul>
+    {% if user.is_authenticated %}
+        <h1>Panel de Opciones</h1>
+        <ul>
+            {% for option in options %}
+                {% if option == 'GPR' and perms.your_app.view_gpr %}
+                    <li><a href="/{{ option|slugify }}/">{{ option }}</a></li>
+                {% elif option == 'SACER RTV' and perms.your_app.view_sacer_rtv %}
+                    <li><a href="/{{ option|slugify }}/">{{ option }}</a></li>
+                {% elif option == 'SACER OCUPACIÓN DE BANDAS' and perms.your_app.view_sacer_ocupacion %}
+                    <li><a href="/{{ option|slugify }}/">{{ option }}</a></li>
+                {% endif %}
+            {% endfor %}
+        </ul>
+        <form method="post" action="{% url 'logout' %}">
+            {% csrf_token %}
+            <button type="submit">Cerrar sesión</button>
+        </form>
+    {% else %}
+        <p>Por favor, <a href="{% url 'login' %}">inicia sesión</a> para acceder al Panel de Opciones.</p>
+    {% endif %}
+
+    <script>
+    function checkSession() {
+        fetch('/check_session/', {
+            method: 'GET',
+            credentials: 'same-origin'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (!data.is_authenticated) {
+                window.location.href = '{% url "login" %}';
+            }
+        });
+    }
+
+    setInterval(checkSession, 300000);
+
+    document.addEventListener("visibilitychange", function() {
+        if (!document.hidden) {
+            checkSession();
+        }
+    });
+    </script>
 </body>
 </html>

@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/5.0/ref/settings/
 """
 
 from pathlib import Path
+
 from environs import Env
 from decouple import config
 import json
@@ -60,6 +61,7 @@ INSTALLED_APPS = [
     "django_plotly_dash.apps.DjangoPlotlyDashConfig",
     "bootstrap4",
     # Local
+    "accounts.apps.AccountsConfig",
     "index_service.apps.IndexServiceConfig",
     "general_report_service.apps.GeneralReportServiceConfig",
     "gpr_service.apps.GprServiceConfig",
@@ -77,6 +79,7 @@ MIDDLEWARE = [
     "django_plotly_dash.middleware.BaseMiddleware",
     "django_plotly_dash.middleware.ExternalRedirectionMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "tablero.middleware.NoCacheMiddleware",
 ]
 
 ROOT_URLCONF = "tablero.urls"
@@ -200,7 +203,7 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.AllowAny',
+        'rest_framework.permissions.IsAuthenticated',
     ],
 }
 
@@ -302,3 +305,13 @@ RUTA_CCDS_32 = env("RUTA_CCDS_32")
 RUTA_CCDR_01 = env("RUTA_CCDR_01")
 RUTA_CCDR_04 = env("RUTA_CCDR_04")
 RUTA_CCDR_06 = env("RUTA_CCDR_06")
+
+AUTH_USER_MODEL = "accounts.CustomUser"
+LOGIN_REDIRECT_URL = '/'
+LOGIN_URL = '/accounts/login/'
+LOGOUT_REDIRECT_URL = '/'
+
+# Configuración de sesión
+SESSION_COOKIE_AGE = 1800  # 30 minutos
+SESSION_EXPIRE_AT_BROWSER_CLOSE = True
+SESSION_SAVE_EVERY_REQUEST = True

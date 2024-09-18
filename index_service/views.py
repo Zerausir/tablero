@@ -5,6 +5,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from .serializers import PostDetailSerializer
 from django.conf import settings
+from django.contrib.auth.decorators import login_required
 
 
 class PostDetail(APIView):
@@ -20,7 +21,7 @@ class PostDetail(APIView):
         else:
             return Response({'error': 'Option not found'}, status=status.HTTP_404_NOT_FOUND)
 
-
+@login_required()
 def index(request):
     options = json.loads(settings.OPTIONS)
     return render(request, 'index.html', {'options': options})

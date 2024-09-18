@@ -12,10 +12,32 @@
     <!-- You can add additional CSS links here -->
 </head>
 <body>
-    <div id="dashboard-container">
-        <h1>Visualización de Resultados SACER</h1>
-        <!-- Embed your DjangoDash app -->
-        {% plotly_app_bootstrap name="GeneralReportApp" %}
-    </div>
+<div id="dashboard-container">
+    <h1>Visualización de Resultados SACER</h1>
+    <!-- Embed your DjangoDash app -->
+    {% plotly_app_bootstrap name="GeneralReportApp" %}
+</div>
+<script>
+    function checkSession() {
+        fetch('/check_session/', {
+            method: 'GET',
+            credentials: 'same-origin'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (!data.is_authenticated) {
+                window.location.href = '{% url "login" %}';
+            }
+        });
+    }
+
+    setInterval(checkSession, 300000);
+
+    document.addEventListener("visibilitychange", function() {
+        if (!document.hidden) {
+            checkSession();
+        }
+    });
+</script>
 </body>
 </html>

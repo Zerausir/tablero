@@ -16,15 +16,21 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
+from django.contrib.auth.views import LoginView, LogoutView
+from django.contrib.auth.decorators import login_required
 from index_service.views import index
 from index_service.api.urls import urlpatterns as api_urls
+from . import views
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('', index, name='index'),
+    path('accounts/login/', LoginView.as_view(template_name='registration/login.html'), name='login'),
+    path('accounts/logout/', LogoutView.as_view(next_page='/accounts/login/'), name='logout'),
+    path('', login_required(index), name='index'),
     path('api/v1/index_service/', include(api_urls)),
     path('', include('general_report_service.urls')),
     path('', include('gpr_service.urls')),
     path('', include('band_occupation_service.urls')),
     path('django_plotly_dash/', include('django_plotly_dash.urls')),
+    path('check_session/', views.check_session, name='check_session'),
 ]
