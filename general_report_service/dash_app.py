@@ -1,11 +1,14 @@
+import io
 import json
 import plotly.graph_objs as go
-from dash import dcc, html, Input, Output, State
+from dash import dcc, html, Input, Output, State, dash_table, no_update
+from dash.exceptions import PreventUpdate
 from django.conf import settings
 from django.http import HttpRequest, QueryDict
 from django_plotly_dash import DjangoDash
 import pandas as pd
 import dash
+from datetime import datetime
 
 from .utils import (convert_timestamps_to_strings, create_heatmap_layout, update_heatmap, update_station_plot_fm,
                     update_station_plot_tv, update_station_plot_am, create_heatmap_data, create_dash_datatable,
@@ -481,6 +484,141 @@ def update_warnings_tables(start_date, end_date, city):
         error_msg += traceback.format_exc()
         print(error_msg)
         return error_msg
+
+
+@app.callback(
+    Output('download-excel', 'data'),
+    Input('download-excel-button', 'n_clicks'),
+    [State('date-picker-range', 'start_date'),
+     State('date-picker-range', 'end_date'),
+     State('city-dropdown', 'value')],
+    prevent_initial_call=True
+)
+def download_tables_excel(n_clicks, start_date, end_date, city):
+    if not n_clicks or not all([start_date, end_date, city]):
+        raise PreventUpdate
+
+    request = HttpRequest()
+    request.GET = QueryDict(f'start_date={start_date}&end_date={end_date}&city={city}')
+
+    try:
+        df_warnings = customize_rtv_warnings_data(request)
+
+        if df_warnings.empty:
+            raise PreventUpdate
+
+        df_5_days, df_9_days, df_60_days, df_91_days = process_warnings_data(df_warnings)
+
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+            def prepare_df_for_excel(df, sheet_name):
+                if not df.empty:
+                    # Asegurarse de que 'Frecuencia (Hz)' sea tratado como texto
+                    if 'Frecuencia (Hz)' in df.columns:
+                        df['Frecuencia (Hz)'] = df['Frecuencia (Hz)'].astype(str)
+
+                    # Reemplazar NaN con cadenas vacías
+                    df = df.fillna('')
+
+                    # Combine inicio and fin columns
+                    for col in df.columns:
+                        if col.endswith('_inicio'):
+                            col_base = col[:-7]
+                            df[col_base] = df.apply(
+                                lambda row: f"{row[col]} al {row[col_base + '_fin']}"
+                                if row[col] != '' and row[col_base + '_fin'] != ''
+                                else '',
+                                axis=1
+                            )
+                            df = df.drop(columns=[col, col_base + '_fin'])
+
+                    # Write DataFrame to Excel
+                    df.to_excel(writer, sheet_name=sheet_name, index=False)
+
+                    # Get workbook and worksheet objects
+                    workbook = writer.book
+                    worksheet = writer.sheets[sheet_name]
+
+                    # Define formats
+                    header_format = workbook.add_format({
+                        'bold': True,
+                        'border': 1,
+                        'bg_color': '#D9D9D9'  # Gris claro para el encabezado
+                    })
+                    warning_format = workbook.add_format({
+                        'bg_color': '#FFFF99',  # Amarillo tenue para advertencias
+                        'border': 1
+                    })
+                    alert_format = workbook.add_format({
+                        'bg_color': '#FFCCCB',  # Rojo tenue para alertas
+                        'border': 1
+                    })
+                    border_format = workbook.add_format({
+                        'border': 1
+                    })
+                    number_format = workbook.add_format({
+                        'border': 1,
+                        'num_format': '0'  # Formato numérico sin decimales
+                    })
+
+                    # Write headers with format
+                    for col_num, value in enumerate(df.columns.values):
+                        worksheet.write(0, col_num, value, header_format)
+
+                    # Apply autofilter
+                    worksheet.autofilter(0, 0, len(df), len(df.columns) - 1)
+
+                    # Apply conditional formatting and borders
+                    for row_num in range(1, len(df) + 1):
+                        for col_num, col_name in enumerate(df.columns):
+                            try:
+                                value = df.iloc[row_num - 1, col_num]
+                                cell_format = border_format
+
+                                # Seleccionar el formato según el tipo de columna
+                                if col_name == 'Frecuencia (Hz)':
+                                    cell_format = number_format
+                                elif 'Adv.' in col_name:
+                                    cell_format = warning_format
+                                elif 'Alert.' in col_name:
+                                    cell_format = alert_format
+
+                                # Si es la columna de frecuencia y el valor no está vacío
+                                if col_name == 'Frecuencia (Hz)' and value != '':
+                                    try:
+                                        value = float(value)
+                                    except:
+                                        pass
+
+                                worksheet.write(row_num, col_num, value, cell_format)
+                            except Exception as e:
+                                worksheet.write(row_num, col_num, '', cell_format)
+
+                    # Adjust column width
+                    for col_num, col_name in enumerate(df.columns):
+                        max_length = max(
+                            df[col_name].astype(str).apply(len).max(),
+                            len(col_name)
+                        )
+                        worksheet.set_column(col_num, col_num, max_length + 2)
+
+                    # Freeze panes to keep header visible
+                    worksheet.freeze_panes(1, 0)
+
+            # Write each table to a different sheet
+            prepare_df_for_excel(df_5_days, 'Advertencias 5 días')
+            prepare_df_for_excel(df_9_days, 'Alertas 9 días')
+            prepare_df_for_excel(df_60_days, 'Advertencias 60 días')
+            prepare_df_for_excel(df_91_days, 'Alertas 91 días')
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f'observaciones_{city}_{timestamp}.xlsx'
+
+        return dcc.send_bytes(output.getvalue(), filename)
+
+    except Exception as e:
+        print(f"Error generating Excel file: {str(e)}")
+        raise PreventUpdate
 
 
 register_callbacks()

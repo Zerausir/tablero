@@ -278,7 +278,28 @@ def create_heatmap_layout(df_original1, df_original2, df_original3, selected_fre
             html.Div(id='station-plots-container-am'),
         ]),
         dcc.Tab(label='Estaciones con Observaciones', value='tab-4', children=[
-            html.Div(id='warnings-container'),
+            html.Div([  # Contenedor para las tablas y el botón
+                html.Div(id='warnings-container'),
+                html.Div(  # Contenedor para el botón y el componente de descarga
+                    children=[
+                        html.Button(
+                            'Descargar Tablas en Excel',
+                            id='download-excel-button',
+                            style={
+                                'margin': '20px',
+                                'padding': '10px 20px',
+                                'backgroundColor': '#4CAF50',
+                                'color': 'white',
+                                'border': 'none',
+                                'borderRadius': '4px',
+                                'cursor': 'pointer'
+                            }
+                        ),
+                        dcc.Download(id='download-excel'),
+                    ],
+                    style={'textAlign': 'center'}  # Centra el botón
+                ),
+            ]),
         ]),
     ])
 
