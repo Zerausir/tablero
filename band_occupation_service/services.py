@@ -1,6 +1,6 @@
 import datetime
 import pandas as pd
-import psycopg
+import psycopg2
 from django.conf import settings
 from django.views.decorators.cache import cache_page
 
@@ -10,7 +10,7 @@ pd.set_option('future.no_silent_downcasting', True)
 
 
 def get_db_connection():
-    return psycopg.connect(
+    return psycopg2.connect(
         dbname=settings.DBNAME,
         user=settings.USER,
         password=settings.PASSWORD,

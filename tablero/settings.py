@@ -210,7 +210,7 @@ REST_FRAMEWORK = {
 X_FRAME_OPTIONS = 'SAMEORIGIN'
 
 # Increase the maximum upload size to 100 MB
-DATA_UPLOAD_MAX_MEMORY_SIZE = 104857600  # 100 MB in bytes
+DATA_UPLOAD_MAX_MEMORY_SIZE = None  # 100 MB in bytes
 
 # settings.py
 

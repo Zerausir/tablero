@@ -1,6 +1,6 @@
 import datetime
 import pandas as pd
-import psycopg
+import psycopg2
 from django.conf import settings
 from django.views.decorators.cache import cache_page
 from django.core.cache import cache
@@ -17,7 +17,7 @@ def get_db_connection():
         psycopg.Connection: A connection to the PostgreSQL database.
     """
     try:
-        conn = psycopg.connect(
+        conn = psycopg2.connect(
             dbname=settings.DBNAME,
             user=settings.USER,
             password=settings.PASSWORD,
