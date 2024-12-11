@@ -25,27 +25,45 @@ def fetch_data_from_db(request):
     end_date = request.GET.get('end_date')
     city = request.GET.get('city')
     last_query_time = request.GET.get('last_query_time')
+    start_freq = float(request.GET.get('start_freq')) * 1e6
+    end_freq = float(request.GET.get('end_freq')) * 1e6
 
-    # Convert start_date and end_date to datetime objects
     start_date = datetime.datetime.strptime(start_date, '%Y-%m-%d')
     end_date = datetime.datetime.strptime(end_date, '%Y-%m-%d')
 
-    # Convert last_query_time to datetime object if it exists
     if last_query_time:
         last_query_time = datetime.datetime.strptime(last_query_time, '%Y-%m-%d %H:%M:%S')
 
     conn = get_db_connection()
-    query = """
-        SELECT *
+
+    # Query for FM data
+    query_fm = """
+        SELECT tiempo, frecuencia_hz, level_dbuv_m, offset_hz, fm_hz as modulation_value, bandwidth_hz, city, 'FM' as tipo
         FROM band_occupation
-        WHERE city = %s AND tiempo BETWEEN %s AND %s
+        WHERE city = %s AND tiempo BETWEEN %s AND %s AND frecuencia_hz BETWEEN %s AND %s
     """
+
+    # Query for AM data
+    query_am = """
+        SELECT tiempo, frecuencia_hz, level_dbuv_m, offset_hz, am_percentage as modulation_value, bandwidth_hz, city, 'AM' as tipo
+        FROM band_occupation_am
+        WHERE city = %s AND tiempo BETWEEN %s AND %s AND frecuencia_hz BETWEEN %s AND %s
+    """
+
+    params = [city, start_date, end_date, start_freq, end_freq]
+
     if last_query_time is not None:
-        query += " AND tiempo > %s"
-        params = [city, start_date, end_date, last_query_time]
-    else:
-        params = [city, start_date, end_date]
-    df = pd.read_sql(query, conn, params=params)
+        query_fm += " AND tiempo > %s"
+        query_am += " AND tiempo > %s"
+        params.append(last_query_time)
+
+    # Fetch data from both tables
+    df_fm = pd.read_sql(query_fm, conn, params=params)
+    df_am = pd.read_sql(query_am, conn, params=params)
+
+    # Combine the dataframes
+    df = pd.concat([df_fm, df_am], ignore_index=True)
+
     conn.close()
     return df
 

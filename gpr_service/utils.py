@@ -90,10 +90,18 @@ def create_pie_charts_for_indicators(df, selected_date):
                 cantidad_verificables = data_indicador[
                     'CANTIDAD_VERIFICABLES'].sum() if 'CANTIDAD_VERIFICABLES' in data_indicador else 0
 
-        avance_global = min(cantidad_verificables / planificada * 100 if planificada > 0 else 0, 100)
+        # Modificación para el cálculo del avance global
+        if planificada == 0 and cantidad_verificables == 0:
+            avance_global = 100  # Si no hay nada planificado y nada realizado, considerar 100% completado
+        else:
+            avance_global = min(cantidad_verificables / planificada * 100 if planificada > 0 else 0, 100)
         restante_global = max(100 - avance_global, 0)
 
-        avance_corte = min(cantidad_verificables / cumplir * 100 if cumplir > 0 else 0, 100)
+        # Modificación para el cálculo del avance al corte
+        if cumplir == 0 and cantidad_verificables == 0:
+            avance_corte = 100  # Si no hay nada que cumplir y nada realizado, considerar 100% completado
+        else:
+            avance_corte = min(cantidad_verificables / cumplir * 100 if cumplir > 0 else 0, 100)
         restante_corte = max(100 - avance_corte, 0)
 
         pie_global = go.Figure(data=[
