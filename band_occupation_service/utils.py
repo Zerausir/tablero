@@ -103,14 +103,16 @@ def create_dash_datatable(table_id: str, style: dict = {}) -> dash_table.DataTab
     )
 
 
-def create_heatmap_data(df: pd.DataFrame, x_range=None) -> go.Figure:
+def create_heatmap_data(df: pd.DataFrame, value_column: str = 'level_dbuv_m', title: str = '',
+                        x_range=None) -> go.Figure:
     """
-    Create heatmap data from a DataFrame. The DataFrame is expected to have 'Level (dBµV/m)',
-    'Tiempo', and 'Frecuencia (Hz)' columns. If the DataFrame is empty, an empty figure is returned.
+    Create heatmap data from a DataFrame for any specified parameter.
 
     Args:
         df (pd.DataFrame): The DataFrame from which the heatmap data is to be created.
-        x_range (list, optional): The range of the x-axis. If None, the range is determined from the data.
+        value_column (str): The column to use for the heatmap values.
+        title (str): The title for the heatmap.
+        x_range (list, optional): The range of the x-axis.
 
     Returns:
         go.Figure: A Plotly Heatmap figure.
@@ -121,14 +123,28 @@ def create_heatmap_data(df: pd.DataFrame, x_range=None) -> go.Figure:
     df = df.fillna(0)
     df['tiempo'] = pd.to_datetime(df['tiempo'])
 
-    # Asegurarse de que 'Level (dBµV/m)' sea numérico, reemplazar '-' por NaN
-    df['level_dbuv_m'] = pd.to_numeric(df['level_dbuv_m'], errors='coerce')
+    # Asegurar que la columna sea numérica
+    df[value_column] = pd.to_numeric(df[value_column], errors='coerce')
 
-    # Utilizar "mean" en lugar de np.mean para evitar advertencias futuras
-    heatmap_data = df.pivot_table(values='level_dbuv_m', index='tiempo', columns='frecuencia_hz', aggfunc='mean')
+    heatmap_data = df.pivot_table(
+        values=value_column,
+        index='tiempo',
+        columns='frecuencia_hz',
+        aggfunc='mean'
+    )
+
+    # Definir rangos de color según el parámetro
+    if value_column == 'level_dbuv_m':
+        zmin, zmax = 0, 100
+    elif value_column == 'offset_hz':
+        zmin, zmax = df[value_column].min(), df[value_column].max()
+    elif value_column == 'modulation_value':
+        zmin, zmax = 0, 100
+    else:
+        zmin, zmax = df[value_column].min(), df[value_column].max()
 
     layout = go.Layout(
-        title='Nivel de Intensidad de Campo Eléctrico (dBµV/m) vs Frecuencia',
+        title=title,
         xaxis={'title': 'Frecuencia (Hz)'},
         yaxis={'title': 'Tiempo', 'tickfont': {'size': 11}},
         margin=dict(l=112)
@@ -143,8 +159,8 @@ def create_heatmap_data(df: pd.DataFrame, x_range=None) -> go.Figure:
             x=heatmap_data.columns,
             y=heatmap_data.index,
             colorscale='rainbow',
-            zmin=0,
-            zmax=100,
+            zmin=zmin,
+            zmax=zmax,
             colorbar=dict(orientation='h', y=1)
         ),
         layout=layout
@@ -212,10 +228,11 @@ def create_scatter_plot(df: pd.DataFrame, x_range=None, threshold=None) -> go.Fi
     )
 
 
-def create_heatmap_layout(df_original: pd.DataFrame) -> dcc.Tabs:
-    tabs_layout = dcc.Tabs(id='tabs-container', children=[
+def create_heatmap_layout(df_original):
+    return dcc.Tabs(id='tabs-container', children=[
         dcc.Tab(label='Banda de frecuencias seleccionada', children=[
-            dcc.Graph(id='heatmap', figure=create_heatmap_data(df_original)),
+            dcc.Graph(id='heatmap', figure=create_heatmap_data(df_original, 'level_dbuv_m',
+                                                               'Nivel de Intensidad de Campo Eléctrico (dBµV/m)')),
             dcc.Slider(
                 id='threshold-slider',
                 min=0,
@@ -233,8 +250,21 @@ def create_heatmap_layout(df_original: pd.DataFrame) -> dcc.Tabs:
                 create_dash_datatable('table'),
             ], style={'display': 'none'}),
         ]),
+        dcc.Tab(label='Análisis por parámetro', children=[
+            dcc.Dropdown(
+                id='parameter-dropdown',
+                options=[
+                    {'label': 'Level (dBµV/m)', 'value': 'level_dbuv_m'},
+                    {'label': 'Offset (Hz)', 'value': 'offset_hz'},
+                    {'label': 'Modulación', 'value': 'modulation_value'},
+                    {'label': 'Ancho de banda (Hz)', 'value': 'bandwidth_hz'}
+                ],
+                value='level_dbuv_m',
+                style={'margin': '10px'}
+            ),
+            dcc.Graph(id='parameter-heatmap'),
+        ])
     ])
-    return tabs_layout
 
 
 def calculate_occupation_percentage(df: pd.DataFrame, threshold: float) -> pd.DataFrame:

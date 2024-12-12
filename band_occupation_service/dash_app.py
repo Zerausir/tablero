@@ -7,6 +7,7 @@ from django.conf import settings
 from django.http import HttpRequest, QueryDict
 from django_plotly_dash import DjangoDash
 from dash.dependencies import State
+import plotly.graph_objs as go
 
 from .utils import convert_timestamps_to_strings, create_heatmap_layout, create_heatmap_data, \
     calculate_occupation_percentage, create_scatter_plot
@@ -145,6 +146,25 @@ def register_callbacks():
                 df.to_excel(writer, sheet_name='Data')
             excel_file.seek(0)
             return dcc.send_bytes(excel_file.read(), filename="Data.xlsx")
+
+    @app.callback(
+        Output('parameter-heatmap', 'figure'),
+        [Input('parameter-dropdown', 'value'),
+         Input('store-df-original', 'data')]
+    )
+    def update_parameter_heatmap(parameter, data):
+        if not data or not parameter:
+            return go.Figure()
+
+        df = pd.DataFrame(data)
+        titles = {
+            'level_dbuv_m': 'Nivel de Intensidad de Campo Eléctrico (dBµV/m)',
+            'offset_hz': 'Offset (Hz)',
+            'modulation_value': 'Valor de Modulación',
+            'bandwidth_hz': 'Ancho de Banda (Hz)'
+        }
+
+        return create_heatmap_data(df, parameter, titles.get(parameter, ''))
 
 
 async def customize_data_async(request):
