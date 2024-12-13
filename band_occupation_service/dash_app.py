@@ -6,11 +6,11 @@ from dash import dcc, html, Input, Output
 from django.conf import settings
 from django.http import HttpRequest, QueryDict
 from django_plotly_dash import DjangoDash
-from dash.dependencies import State
+from dash.dependencies import State, ALL
 import plotly.graph_objs as go
 
 from .utils import convert_timestamps_to_strings, create_heatmap_layout, create_heatmap_data, \
-    calculate_occupation_percentage, create_scatter_plot
+    calculate_occupation_percentage, create_scatter_plot, calculate_intermodulation_products, create_intermod_heatmap
 from .services import customize_data
 
 app = DjangoDash(
@@ -165,6 +165,90 @@ def register_callbacks():
         }
 
         return create_heatmap_data(df, parameter, titles.get(parameter, ''))
+
+    register_intermod_callbacks()
+
+
+def register_intermod_callbacks():
+    @app.callback(
+        Output('source-ranges-container', 'children'),
+        [Input('add-range-button', 'n_clicks')],
+        [State('source-ranges-container', 'children')]
+    )
+    def add_range_input(n_clicks, children):
+        if n_clicks is None:
+            return children
+
+        new_range = html.Div([
+            dcc.Input(
+                id={'type': 'source-start', 'index': len(children)},
+                type='number',
+                placeholder=f'Inicio rango {len(children) + 1}',
+                className='w-32 p-2 border rounded'
+            ),
+            html.Span(' - ', className='mx-2'),
+            dcc.Input(
+                id={'type': 'source-end', 'index': len(children)},
+                type='number',
+                placeholder=f'Fin rango {len(children) + 1}',
+                className='w-32 p-2 border rounded'
+            )
+        ], className='flex items-center mb-2')
+
+        return children + [new_range]
+
+    @app.callback(
+        [Output('intermod-heatmap', 'figure'),
+         Output('intermod-table', 'data')],
+        [Input('execute-analysis-button', 'n_clicks')],
+        [State('analysis-start-freq', 'value'),
+         State('analysis-end-freq', 'value'),
+         State('intermod-type', 'value'),
+         State('source-ranges-container', 'children'),
+         State('store-df-original', 'data')]
+    )
+    def update_intermod_analysis(n_clicks, analysis_start, analysis_end, intermod_types, source_ranges_children, data):
+        if n_clicks is None:
+            return go.Figure(), []
+
+        if not all([analysis_start, analysis_end, data, intermod_types]):
+            return go.Figure(), []
+
+        # Convertir los datos a DataFrame
+        df = pd.DataFrame(data)
+        if df.empty:
+            return go.Figure(), []
+
+        # Obtener rangos de fuente de los inputs
+        source_ranges = []
+        for child in source_ranges_children:
+            try:
+                start = float(child['props']['children'][0]['props']['value'])
+                end = float(child['props']['children'][2]['props']['value'])
+                if start and end:
+                    source_ranges.append((start, end))
+            except (TypeError, KeyError):
+                continue
+
+        # Convertir MHz a Hz para el análisis
+        analysis_range = (analysis_start * 1e6, analysis_end * 1e6)
+
+        # Calcular productos de intermodulación
+        products_df = calculate_intermodulation_products(
+            df,
+            intermod_types,
+            [(start * 1e6, end * 1e6) for start, end in source_ranges]
+        )
+
+        # Crear visualización
+        fig = create_intermod_heatmap(
+            df,
+            products_df,
+            analysis_range,
+            source_ranges
+        )
+
+        return fig, products_df.to_dict('records')
 
 
 async def customize_data_async(request):

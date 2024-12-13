@@ -263,27 +263,339 @@ def create_heatmap_layout(df_original):
                 style={'margin': '10px'}
             ),
             dcc.Graph(id='parameter-heatmap'),
-        ])
+        ]),
+        create_intermodulation_tab()
     ])
 
 
 def calculate_occupation_percentage(df: pd.DataFrame, threshold: float) -> pd.DataFrame:
     """
     Calculate the percentage of occupation for each frequency based on the threshold.
-
-    Args:
-        df (pd.DataFrame): The DataFrame containing the data.
-        threshold (float): The threshold value for level_dbuv_m.
-
-    Returns:
-        pd.DataFrame: A DataFrame with the frequency and the corresponding occupation percentage.
     """
-    # Replace non-numeric values with NaN
-    df['level_dbuv_m'] = df['level_dbuv_m'].replace('-', np.nan)
+    if df.empty:
+        return pd.DataFrame(columns=['frecuencia_hz', 'occupation_percentage'])
 
-    df['level_dbuv_m'] = pd.to_numeric(df['level_dbuv_m'], errors='coerce')
+    # Asegurar que tenemos las columnas necesarias
+    if 'level_dbuv_m' not in df.columns:
+        print("Error: 'level_dbuv_m' no encontrado en el DataFrame")
+        return pd.DataFrame(columns=['frecuencia_hz', 'occupation_percentage'])
 
+    # Convertir a numérico
+    df = df.copy()
+    df['level_dbuv_m'] = pd.to_numeric(df['level_dbuv_m'].astype(str).replace('-', 'nan'), errors='coerce')
+
+    # Calcular ocupación
     df['occupied'] = df['level_dbuv_m'] >= threshold
     occupation_percentage = df.groupby('frecuencia_hz')['occupied'].mean() * 100
-    return pd.DataFrame(
-        {'frecuencia_hz': occupation_percentage.index, 'occupation_percentage': occupation_percentage.values})
+
+    return pd.DataFrame({
+        'frecuencia_hz': occupation_percentage.index,
+        'occupation_percentage': occupation_percentage.values
+    })
+
+
+def calculate_intermodulation_products(df: pd.DataFrame, intermod_types: list,
+                                       source_bands: list = None) -> pd.DataFrame:
+    """
+    Calcula productos de intermodulación entre múltiples bandas de frecuencia según ITU-R SM.1446-0.
+
+    Args:
+        df: DataFrame con las mediciones
+        intermod_types: Lista de tipos de productos a calcular ('2nd', '3rd')
+        source_bands: Lista de tuplas con los rangos de frecuencia fuente en MHz
+
+    Returns:
+        DataFrame con los productos de intermodulación calculados
+    """
+    if df.empty:
+        return pd.DataFrame(columns=['freq', 'type', 'equation', 'level', 'source_freqs'])
+
+    if 'level_dbuv_m' not in df.columns:
+        print("Error: 'level_dbuv_m' no encontrado en el DataFrame")
+        return pd.DataFrame(columns=['freq', 'type', 'equation', 'level', 'source_freqs'])
+
+    products = []
+    df = df.copy()
+    df['level_dbuv_m'] = pd.to_numeric(df['level_dbuv_m'].astype(str).replace('-', 'nan'), errors='coerce')
+
+    # Si no se especifican bandas fuente, usar frecuencias con señales fuertes
+    if source_bands is None:
+        strong_signals = df[df['level_dbuv_m'] > 40].groupby('frecuencia_hz')['level_dbuv_m'].max()
+    else:
+        # Filtrar señales por bandas fuente
+        mask = pd.Series(False, index=df.index)
+        for start_freq, end_freq in source_bands:
+            mask |= df['frecuencia_hz'].between(start_freq, end_freq)
+        strong_signals = df[mask & (df['level_dbuv_m'] > 40)].groupby('frecuencia_hz')['level_dbuv_m'].max()
+
+    # Convertir frecuencias a MHz
+    frequencies = strong_signals.index.values / 1e6
+
+    def get_signal_level(freq_hz):
+        """Obtiene el nivel de señal más cercano en dBμV/m"""
+        freq_hz = np.int64(freq_hz)
+        try:
+            return strong_signals[freq_hz]
+        except KeyError:
+            closest_freq = strong_signals.index[np.abs(strong_signals.index - freq_hz).argmin()]
+            return strong_signals[closest_freq]
+
+    if '2nd' in intermod_types:
+        # Productos de segundo orden: f1 ± f2 (según ITU-R SM.1446-0)
+        for i, f1 in enumerate(frequencies):
+            for f2 in frequencies[i + 1:]:
+                # Suma (f1 + f2)
+                im_freq_sum = f1 + f2
+                f1_hz = np.int64(f1 * 1e6)
+                f2_hz = np.int64(f2 * 1e6)
+                level = (get_signal_level(f1_hz) + get_signal_level(f2_hz)) / 2 - 20  # Atenuación típica
+                products.append({
+                    'freq': im_freq_sum,
+                    'type': '2nd Order',
+                    'equation': f'{f1:.3f} + {f2:.3f}',
+                    'level': float(level),
+                    'source_freqs': f'f1: {f1:.3f}MHz ({get_signal_level(f1_hz):.1f}dBµV/m), '
+                                    f'f2: {f2:.3f}MHz ({get_signal_level(f2_hz):.1f}dBµV/m)'
+                })
+
+                # Diferencia (f1 - f2)
+                im_freq_diff = abs(f1 - f2)
+                products.append({
+                    'freq': im_freq_diff,
+                    'type': '2nd Order',
+                    'equation': f'|{f1:.3f} - {f2:.3f}|',
+                    'level': float(level),
+                    'source_freqs': f'f1: {f1:.3f}MHz ({get_signal_level(f1_hz):.1f}dBµV/m), '
+                                    f'f2: {f2:.3f}MHz ({get_signal_level(f2_hz):.1f}dBµV/m)'
+                })
+
+    if '3rd' in intermod_types:
+        # Productos de tercer orden: 2f1 - f2 y 2f2 - f1 (según ITU-R SM.1446-0)
+        for i, f1 in enumerate(frequencies):
+            for f2 in frequencies:
+                if f1 != f2:
+                    # 2f1 - f2
+                    im_freq_1 = 2 * f1 - f2
+                    f1_hz = np.int64(f1 * 1e6)
+                    f2_hz = np.int64(f2 * 1e6)
+                    level = 2 * get_signal_level(f1_hz) - get_signal_level(f2_hz) - 40  # Atenuación típica
+                    products.append({
+                        'freq': im_freq_1,
+                        'type': '3rd Order',
+                        'equation': f'2({f1:.3f}) - {f2:.3f}',
+                        'level': float(level),
+                        'source_freqs': f'f1: {f1:.3f}MHz ({get_signal_level(f1_hz):.1f}dBµV/m), '
+                                        f'f2: {f2:.3f}MHz ({get_signal_level(f2_hz):.1f}dBµV/m)'
+                    })
+
+    return pd.DataFrame(products)
+
+
+def create_intermodulation_tab() -> dcc.Tab:
+    """
+    Crea la tab de análisis de intermodulación con selección flexible de rangos de frecuencia
+    y un botón de ejecución.
+    """
+    return dcc.Tab(
+        label='Análisis de Intermodulación',
+        children=[
+            html.Div([
+                # Rango de análisis
+                html.Div([
+                    html.Label('Rango de Análisis (MHz)', className='font-bold mb-2'),
+                    html.Div([
+                        dcc.Input(
+                            id='analysis-start-freq',
+                            type='number',
+                            placeholder='Frecuencia inicial',
+                            className='w-32 p-2 border rounded'
+                        ),
+                        html.Span(' - ', className='mx-2'),
+                        dcc.Input(
+                            id='analysis-end-freq',
+                            type='number',
+                            placeholder='Frecuencia final',
+                            className='w-32 p-2 border rounded'
+                        )
+                    ], className='flex items-center mb-4')
+                ], className='mb-6'),
+
+                # Rangos de señales fuente
+                html.Div([
+                    html.Label('Rangos de Señales Fuente (MHz)', className='font-bold mb-2'),
+                    html.Div(id='source-ranges-container', children=[
+                        html.Div([
+                            dcc.Input(
+                                id={'type': 'source-start', 'index': 0},
+                                type='number',
+                                placeholder='Inicio rango 1',
+                                className='w-32 p-2 border rounded'
+                            ),
+                            html.Span(' - ', className='mx-2'),
+                            dcc.Input(
+                                id={'type': 'source-end', 'index': 0},
+                                type='number',
+                                placeholder='Fin rango 1',
+                                className='w-32 p-2 border rounded'
+                            )
+                        ], className='flex items-center mb-2')
+                    ]),
+                    html.Button(
+                        'Agregar Rango',
+                        id='add-range-button',
+                        className='bg-blue-500 text-white px-4 py-2 rounded mt-2'
+                    )
+                ], className='mb-6'),
+
+                # Tipos de productos
+                html.Div([
+                    dcc.Checklist(
+                        id='intermod-type',
+                        options=[
+                            {'label': 'Productos de 2do Orden', 'value': '2nd'},
+                            {'label': 'Productos de 3er Orden', 'value': '3rd'}
+                        ],
+                        value=['2nd', '3rd'],
+                        className='space-y-2'
+                    )
+                ], className='mb-6'),
+
+                # Botón de ejecución
+                html.Button(
+                    'Ejecutar Análisis',
+                    id='execute-analysis-button',
+                    className='bg-green-500 text-white px-6 py-3 rounded font-bold mb-6'
+                ),
+
+                # Visualización
+                html.Div([
+                    dcc.Loading(
+                        id="loading-intermod",
+                        type="default",
+                        children=[
+                            dcc.Graph(id='intermod-heatmap'),
+                            dash_table.DataTable(
+                                id='intermod-table',
+                                columns=[
+                                    {'name': 'Frecuencia (MHz)', 'id': 'freq'},
+                                    {'name': 'Tipo', 'id': 'type'},
+                                    {'name': 'Ecuación', 'id': 'equation'},
+                                    {'name': 'Frecuencias Origen', 'id': 'source_freqs'}
+                                ],
+                                style_table={'height': '300px', 'overflowY': 'auto'},
+                                style_cell={'textAlign': 'left'},
+                                style_header={'fontWeight': 'bold'}
+                            )
+                        ]
+                    )
+                ])
+            ], className='p-4')
+        ]
+    )
+
+
+def create_intermod_heatmap(df: pd.DataFrame, products_df: pd.DataFrame, analysis_range: tuple,
+                            source_ranges: list) -> go.Figure:
+    """
+    Crea el heatmap con productos de intermodulación y señales fuente superpuestas,
+    asegurando que los marcadores se alineen con el último tiempo del heatmap.
+    """
+    # Convertir los datos para el heatmap
+    df = df.copy()
+    df['tiempo'] = pd.to_datetime(df['tiempo'])
+    df['level_dbuv_m'] = pd.to_numeric(df['level_dbuv_m'], errors='coerce')
+
+    # Crear matriz para el heatmap
+    pivot_data = df.pivot_table(
+        values='level_dbuv_m',
+        index='tiempo',
+        columns='frecuencia_hz',
+        aggfunc='max'
+    ).fillna(0)
+
+    # Obtener el último tiempo del pivot_data
+    last_time = pivot_data.index[-1]
+
+    # Crear la figura base
+    fig = go.Figure()
+
+    # Agregar el heatmap como la capa base
+    fig.add_trace(go.Heatmap(
+        z=pivot_data.values,
+        x=pivot_data.columns,
+        y=pivot_data.index,
+        colorscale='rainbow',
+        zmin=0,
+        zmax=100,
+        name='Nivel de Campo',
+        showscale=True,
+        colorbar=dict(
+            title='dBµV/m',
+            x=1.1
+        )
+    ))
+
+    # Agregar señales fuente si existen
+    for start_freq, end_freq in source_ranges:
+        if start_freq and end_freq:  # Verificar que los valores no sean None
+            start_hz = start_freq * 1e6
+            end_hz = end_freq * 1e6
+            mask = (df['frecuencia_hz'] >= start_hz) & (df['frecuencia_hz'] <= end_hz)
+            source_freqs = df[mask]['frecuencia_hz'].unique()
+
+            if len(source_freqs) > 0:
+                fig.add_trace(go.Scatter(
+                    x=source_freqs,
+                    y=[last_time] * len(source_freqs),  # Usar el último tiempo del heatmap
+                    mode='markers',
+                    marker=dict(
+                        symbol='diamond',
+                        size=12,
+                        color='yellow',
+                        line=dict(width=2, color='black')
+                    ),
+                    name='Señales Fuente',
+                    hovertemplate='Frecuencia: %{x:.2f} Hz<extra></extra>'
+                ))
+
+    # Agregar productos de intermodulación si existen
+    if not products_df.empty:
+        fig.add_trace(go.Scatter(
+            x=products_df['freq'] * 1e6,  # Convertir MHz a Hz
+            y=[last_time] * len(products_df),  # Usar el último tiempo del heatmap
+            mode='markers',
+            marker=dict(
+                symbol='x',
+                size=10,
+                color='red',
+                line=dict(width=2)
+            ),
+            name='Productos de Intermodulación',
+            hovertemplate='Frecuencia: %{x:.2f} Hz<extra></extra>'
+        ))
+
+    # Configurar el layout
+    fig.update_layout(
+        title='Nivel de Campo con Productos de Intermodulación',
+        xaxis_title='Frecuencia (Hz)',
+        yaxis_title='Tiempo',
+        showlegend=True,
+        legend=dict(
+            x=1.2,
+            y=1,
+            bordercolor='Black',
+            borderwidth=1
+        ),
+        margin=dict(r=150),
+        plot_bgcolor='rgba(240,240,240,0.95)',
+        paper_bgcolor='white'
+    )
+
+    # Ajustar el rango del eje x si se proporciona
+    if analysis_range:
+        fig.update_xaxes(range=analysis_range)
+
+    # Asegurar que el rango del eje y incluya todos los datos
+    fig.update_yaxes(range=[pivot_data.index[0], pivot_data.index[-1]])
+
+    return fig
