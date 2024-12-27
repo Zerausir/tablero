@@ -2,7 +2,7 @@ import io
 import json
 import pandas as pd
 import asyncio
-from dash import dcc, html, Input, Output
+from dash import dcc, html, Input, Output, dash_table
 from django.conf import settings
 from django.http import HttpRequest, QueryDict
 from django_plotly_dash import DjangoDash
@@ -10,7 +10,8 @@ from dash.dependencies import State, ALL
 import plotly.graph_objs as go
 
 from .utils import convert_timestamps_to_strings, create_heatmap_layout, create_heatmap_data, \
-    calculate_occupation_percentage, create_scatter_plot, calculate_intermodulation_products, create_intermod_heatmap
+    calculate_occupation_percentage, create_scatter_plot, calculate_intermodulation_products, create_intermod_heatmap, \
+    analyze_specific_frequencies, create_frequency_timeline
 from .services import customize_data
 
 app = DjangoDash(
@@ -249,6 +250,85 @@ def register_intermod_callbacks():
         )
 
         return fig, products_df.to_dict('records')
+
+    @app.callback(
+        [Output('frequency-analysis-results', 'children')],
+        [Input('execute-analysis-button', 'n_clicks')],
+        [State('specific-frequencies', 'value'),
+         State('store-df-original', 'data'),
+         State('analysis-start-freq', 'value'),
+         State('analysis-end-freq', 'value'),
+         State('intermod-type', 'value'),
+         State('source-ranges-container', 'children')]
+    )
+    def update_frequency_analysis(n_clicks, specific_freqs, data, start_freq, end_freq, intermod_types,
+                                  source_ranges_children):
+        if not n_clicks or not specific_freqs or not data:
+            return [html.Div()]
+
+        try:
+            # Parsear frecuencias específicas
+            selected_frequencies = [float(f.strip()) for f in specific_freqs.split(',')]
+
+            # Convertir datos a DataFrame
+            df = pd.DataFrame(data)
+
+            # Obtener rangos de fuente
+            source_ranges = []
+            for child in source_ranges_children:
+                try:
+                    start = float(child['props']['children'][0]['props']['value'])
+                    end = float(child['props']['children'][2]['props']['value'])
+                    if start and end:
+                        source_ranges.append((start, end))
+                except (TypeError, KeyError):
+                    continue
+
+            # Calcular productos de intermodulación
+            products_df = calculate_intermodulation_products(
+                df,
+                intermod_types,
+                source_ranges
+            )
+
+            # Analizar frecuencias específicas
+            results = analyze_specific_frequencies(df, products_df, selected_frequencies)
+
+            # Crear visualización de resultados
+            return [html.Div([
+                html.Div([
+                    html.H4(f'Frecuencia: {freq} MHz', className='text-lg font-bold mb-2'),
+                    html.Div([
+                        html.P(f'Nivel promedio medido: {info["average_level"]:.2f} dBµV/m'),
+                        html.P(f'Número de productos que afectan: {info["num_products"]}'),
+                        html.P(f'Contribución total de productos: {info["total_contribution"]:.2f} dBµV/m'),
+
+                        # Tabla de productos que contribuyen
+                        html.Div([
+                            html.H5('Productos que contribuyen:', className='font-bold mt-2'),
+                            dash_table.DataTable(
+                                data=info['contributing_products'],
+                                columns=[
+                                    {'name': 'Tipo', 'id': 'type'},
+                                    {'name': 'Ecuación', 'id': 'equation'},
+                                    {'name': 'Nivel', 'id': 'level'},
+                                ],
+                                style_table={'overflowX': 'auto'},
+                                style_cell={'textAlign': 'left'},
+                                style_header={'fontWeight': 'bold'}
+                            ) if info['contributing_products'] else html.P(
+                                'No hay productos que afecten a esta frecuencia')
+                        ]),
+
+                        # Gráfico de nivel en el tiempo
+                        dcc.Graph(
+                            figure=create_frequency_timeline(info['measurements'], freq)
+                        )
+                    ], className='p-4 border rounded')
+                ], className='mb-6') for freq, info in results.items()
+            ])]
+        except Exception as e:
+            return [html.Div(f'Error en el análisis: {str(e)}')]
 
 
 async def customize_data_async(request):

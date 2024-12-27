@@ -296,99 +296,116 @@ def calculate_occupation_percentage(df: pd.DataFrame, threshold: float) -> pd.Da
 
 def calculate_intermodulation_products(df: pd.DataFrame, intermod_types: list,
                                        source_bands: list = None) -> pd.DataFrame:
-    """
-    Calcula productos de intermodulación entre múltiples bandas de frecuencia según ITU-R SM.1446-0.
-
-    Args:
-        df: DataFrame con las mediciones
-        intermod_types: Lista de tipos de productos a calcular ('2nd', '3rd')
-        source_bands: Lista de tuplas con los rangos de frecuencia fuente en MHz
-
-    Returns:
-        DataFrame con los productos de intermodulación calculados
-    """
     if df.empty:
         return pd.DataFrame(columns=['freq', 'type', 'equation', 'level', 'source_freqs'])
 
-    if 'level_dbuv_m' not in df.columns:
-        print("Error: 'level_dbuv_m' no encontrado en el DataFrame")
-        return pd.DataFrame(columns=['freq', 'type', 'equation', 'level', 'source_freqs'])
+    try:
+        products = []
+        df = df.copy()
+        df['level_dbuv_m'] = pd.to_numeric(df['level_dbuv_m'].astype(str).replace('-', 'nan'), errors='coerce')
 
-    products = []
-    df = df.copy()
-    df['level_dbuv_m'] = pd.to_numeric(df['level_dbuv_m'].astype(str).replace('-', 'nan'), errors='coerce')
+        strong_signals = df[df['level_dbuv_m'] > 40].groupby('frecuencia_hz')[
+            'level_dbuv_m'].max() if not source_bands else \
+            df[df['frecuencia_hz'].apply(lambda x: any(start * 1e6 <= x <= end * 1e6 for start, end in source_bands)) &
+               (df['level_dbuv_m'] > 40)].groupby('frecuencia_hz')['level_dbuv_m'].max()
 
-    # Si no se especifican bandas fuente, usar frecuencias con señales fuertes
-    if source_bands is None:
-        strong_signals = df[df['level_dbuv_m'] > 40].groupby('frecuencia_hz')['level_dbuv_m'].max()
-    else:
-        # Filtrar señales por bandas fuente
-        mask = pd.Series(False, index=df.index)
-        for start_freq, end_freq in source_bands:
-            mask |= df['frecuencia_hz'].between(start_freq, end_freq)
-        strong_signals = df[mask & (df['level_dbuv_m'] > 40)].groupby('frecuencia_hz')['level_dbuv_m'].max()
+        frequencies = strong_signals.index.values / 1e6
 
-    # Convertir frecuencias a MHz
-    frequencies = strong_signals.index.values / 1e6
+        def get_signal_level(freq_hz, tolerance_hz=1000):
+            freq_hz = np.int64(freq_hz)
+            mask = (np.abs(strong_signals.index - freq_hz) <= tolerance_hz)
+            if mask.any():
+                closest_freq = strong_signals.index[mask][0]
+                return strong_signals[closest_freq]
+            return None
 
-    def get_signal_level(freq_hz):
-        """Obtiene el nivel de señal más cercano en dBμV/m"""
-        freq_hz = np.int64(freq_hz)
-        try:
-            return strong_signals[freq_hz]
-        except KeyError:
-            closest_freq = strong_signals.index[np.abs(strong_signals.index - freq_hz).argmin()]
-            return strong_signals[closest_freq]
+        def calculate_im_level(levels: list, arim: int) -> float:
+            uv_m_levels = [10 ** (level / 20) for level in levels]
+            total_uv_m = sum(uv_m_levels)
+            return 20 * np.log10(total_uv_m) - arim
 
-    if '2nd' in intermod_types:
-        # Productos de segundo orden: f1 ± f2 (según ITU-R SM.1446-0)
-        for i, f1 in enumerate(frequencies):
-            for f2 in frequencies[i + 1:]:
-                # Suma (f1 + f2)
-                im_freq_sum = f1 + f2
-                f1_hz = np.int64(f1 * 1e6)
-                f2_hz = np.int64(f2 * 1e6)
-                level = (get_signal_level(f1_hz) + get_signal_level(f2_hz)) / 2 - 20  # Atenuación típica
-                products.append({
-                    'freq': im_freq_sum,
-                    'type': '2nd Order',
-                    'equation': f'{f1:.3f} + {f2:.3f}',
-                    'level': float(level),
-                    'source_freqs': f'f1: {f1:.3f}MHz ({get_signal_level(f1_hz):.1f}dBµV/m), '
-                                    f'f2: {f2:.3f}MHz ({get_signal_level(f2_hz):.1f}dBµV/m)'
-                })
-
-                # Diferencia (f1 - f2)
-                im_freq_diff = abs(f1 - f2)
-                products.append({
-                    'freq': im_freq_diff,
-                    'type': '2nd Order',
-                    'equation': f'|{f1:.3f} - {f2:.3f}|',
-                    'level': float(level),
-                    'source_freqs': f'f1: {f1:.3f}MHz ({get_signal_level(f1_hz):.1f}dBµV/m), '
-                                    f'f2: {f2:.3f}MHz ({get_signal_level(f2_hz):.1f}dBµV/m)'
-                })
-
-    if '3rd' in intermod_types:
-        # Productos de tercer orden: 2f1 - f2 y 2f2 - f1 (según ITU-R SM.1446-0)
-        for i, f1 in enumerate(frequencies):
-            for f2 in frequencies:
-                if f1 != f2:
-                    # 2f1 - f2
-                    im_freq_1 = 2 * f1 - f2
+        if '2nd' in intermod_types:
+            for i, f1 in enumerate(frequencies):
+                for f2 in frequencies[i + 1:]:
                     f1_hz = np.int64(f1 * 1e6)
                     f2_hz = np.int64(f2 * 1e6)
-                    level = 2 * get_signal_level(f1_hz) - get_signal_level(f2_hz) - 40  # Atenuación típica
+
+                    level1 = get_signal_level(f1_hz)
+                    level2 = get_signal_level(f2_hz)
+
+                    if level1 is None or level2 is None:
+                        continue
+
+                    level_im = calculate_im_level([level1, level2], 45)  # ARIM = 45 dB
+
                     products.append({
-                        'freq': im_freq_1,
-                        'type': '3rd Order',
-                        'equation': f'2({f1:.3f}) - {f2:.3f}',
-                        'level': float(level),
-                        'source_freqs': f'f1: {f1:.3f}MHz ({get_signal_level(f1_hz):.1f}dBµV/m), '
-                                        f'f2: {f2:.3f}MHz ({get_signal_level(f2_hz):.1f}dBµV/m)'
+                        'freq': float(f1 + f2),
+                        'type': '2nd Order',
+                        'equation': f'{f1:.3f} + {f2:.3f}',
+                        'level': float(level_im),
+                        'source_freqs': f'f1: {f1:.3f}MHz ({level1:.1f}dBµV/m), f2: {f2:.3f}MHz ({level2:.1f}dBµV/m)'
                     })
 
-    return pd.DataFrame(products)
+                    products.append({
+                        'freq': float(abs(f1 - f2)),
+                        'type': '2nd Order',
+                        'equation': f'|{f1:.3f} - {f2:.3f}|',
+                        'level': float(level_im),
+                        'source_freqs': f'f1: {f1:.3f}MHz ({level1:.1f}dBµV/m), f2: {f2:.3f}MHz ({level2:.1f}dBµV/m)'
+                    })
+
+        if '3rd' in intermod_types:
+            for f1 in frequencies:
+                f1_hz = np.int64(f1 * 1e6)
+                second_harmonic_f1_hz = np.int64(2 * f1 * 1e6)
+
+                level1 = get_signal_level(f1_hz)
+                level_2f1 = get_signal_level(second_harmonic_f1_hz)
+
+                if level1 is None or level_2f1 is None:
+                    continue
+
+                for f2 in frequencies:
+                    if f1 != f2:
+                        f2_hz = np.int64(f2 * 1e6)
+                        level2 = get_signal_level(f2_hz)
+
+                        if level2 is None:
+                            continue
+
+                        level_im = calculate_im_level([level_2f1, level2], 70)  # ARIM = 70 dB
+
+                        products.append({
+                            'freq': float(2 * f1 - f2),
+                            'type': '3rd Order',
+                            'equation': f'2({f1:.3f}) - {f2:.3f}',
+                            'level': float(level_im),
+                            'source_freqs': f'2*f1: {2 * f1:.3f}MHz ({level_2f1:.1f}dBµV/m), f2: {f2:.3f}MHz ({level2:.1f}dBµV/m)'
+                        })
+
+                        for f3 in frequencies:
+                            if f3 != f1 and f3 != f2:
+                                f3_hz = np.int64(f3 * 1e6)
+                                level3 = get_signal_level(f3_hz)
+
+                                if level3 is None:
+                                    continue
+
+                                level_im = calculate_im_level([level1, level2, level3], 50)  # ARIM = 50 dB
+
+                                products.append({
+                                    'freq': float(f1 + f2 - f3),
+                                    'type': '3rd Order',
+                                    'equation': f'{f1:.3f} + {f2:.3f} - {f3:.3f}',
+                                    'level': float(level_im),
+                                    'source_freqs': f'f1: {f1:.3f}MHz ({level1:.1f}dBµV/m), f2: {f2:.3f}MHz ({level2:.1f}dBµV/m), f3: {f3:.3f}MHz ({level3:.1f}dBµV/m)'
+                                })
+
+        return pd.DataFrame(products)
+
+    except Exception as e:
+        print(f"Error en calculate_intermodulation_products: {str(e)}")
+        return pd.DataFrame(columns=['freq', 'type', 'equation', 'level', 'source_freqs'])
 
 
 def create_intermodulation_tab() -> dcc.Tab:
@@ -418,6 +435,18 @@ def create_intermodulation_tab() -> dcc.Tab:
                             className='w-32 p-2 border rounded'
                         )
                     ], className='flex items-center mb-4')
+                ], className='mb-6'),
+
+                # Selector de frecuencias específicas
+                html.Div([
+                    html.Label('Frecuencias específicas a analizar (MHz)', className='font-bold mb-2'),
+                    dcc.Input(
+                        id='specific-frequencies',
+                        type='text',
+                        placeholder='Ej: 98.5, 100.1, 102.3',
+                        className='w-64 p-2 border rounded',
+                        debounce=True
+                    ),
                 ], className='mb-6'),
 
                 # Rangos de señales fuente
@@ -485,7 +514,9 @@ def create_intermodulation_tab() -> dcc.Tab:
                                 style_table={'height': '300px', 'overflowY': 'auto'},
                                 style_cell={'textAlign': 'left'},
                                 style_header={'fontWeight': 'bold'}
-                            )
+                            ),
+                            # Contenedor para resultados de frecuencias específicas
+                            html.Div(id='frequency-analysis-results', className='mt-6')
                         ]
                     )
                 ])
@@ -597,5 +628,115 @@ def create_intermod_heatmap(df: pd.DataFrame, products_df: pd.DataFrame, analysi
 
     # Asegurar que el rango del eje y incluya todos los datos
     fig.update_yaxes(range=[pivot_data.index[0], pivot_data.index[-1]])
+
+    return fig
+
+
+def analyze_specific_frequencies(df: pd.DataFrame, products_df: pd.DataFrame, selected_frequencies: list) -> dict:
+    """
+    Analiza frecuencias específicas y sus productos de intermodulación.
+    """
+    results = {}
+
+    try:
+        for freq in selected_frequencies:
+            freq_hz = freq * 1e6
+            tolerance = 0.001 * 1e6
+
+            freq_data = df[
+                (df['frecuencia_hz'] >= freq_hz - tolerance) &
+                (df['frecuencia_hz'] <= freq_hz + tolerance)
+                ].copy()
+
+            freq_data['level_dbuv_m'] = pd.to_numeric(freq_data['level_dbuv_m'], errors='coerce')
+            avg_level = freq_data['level_dbuv_m'].mean() if not freq_data.empty else 0
+
+            affecting_products = products_df[
+                (products_df['freq'] >= freq - 0.001) &
+                (products_df['freq'] <= freq + 0.001)
+                ].copy() if 'freq' in products_df.columns else pd.DataFrame()
+
+            # Ordenar productos por nivel descendente
+            affecting_products = affecting_products.sort_values('level', ascending=False)
+
+            contributing_products = []
+            if not affecting_products.empty:
+                for _, product in affecting_products.iterrows():
+                    try:
+                        contributing_products.append({
+                            'type': str(product.get('type', '')),
+                            'equation': str(product.get('equation', '')),
+                            'level': f"{float(product.get('level', 0)):.1f}",
+                            'source_freqs': str(product.get('source_freqs', ''))
+                        })
+                    except (ValueError, TypeError) as e:
+                        print(f"Error procesando producto: {e}")
+                        continue
+
+            # Calcular contribución total
+            total_contribution = 0
+            if contributing_products:
+                try:
+                    powers = [10 ** (float(product['level']) / 20) for product in contributing_products]
+                    total_contribution = 20 * np.log10(sum(powers))
+                except (ValueError, TypeError) as e:
+                    print(f"Error calculando contribución total: {e}")
+
+            results[freq] = {
+                'average_level': float(avg_level),
+                'num_products': len(contributing_products),
+                'total_contribution': float(total_contribution),
+                'contributing_products': contributing_products,
+                'measurements': create_measurements_list(freq_data)
+            }
+
+    except Exception as e:
+        print(f"Error en analyze_specific_frequencies: {str(e)}")
+        raise
+
+    return results
+
+
+def create_measurements_list(freq_data):
+    measurements = []
+    if not freq_data.empty:
+        for _, row in freq_data.iterrows():
+            try:
+                measurements.append({
+                    'tiempo': row['tiempo'],
+                    'level_dbuv_m': float(row['level_dbuv_m']) if pd.notnull(row['level_dbuv_m']) else 0
+                })
+            except (ValueError, TypeError) as e:
+                print(f"Error procesando medición: {e}")
+    return measurements
+
+
+def create_frequency_timeline(measurements: list, frequency: float) -> go.Figure:
+    """
+    Crea un gráfico de línea temporal para una frecuencia específica.
+    """
+    df = pd.DataFrame(measurements)
+    if df.empty:
+        return go.Figure()
+
+    # Asegurar tipos de datos correctos
+    df['tiempo'] = pd.to_datetime(df['tiempo'])
+    df['level_dbuv_m'] = pd.to_numeric(df['level_dbuv_m'], errors='coerce')
+
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=df['tiempo'],
+        y=df['level_dbuv_m'],
+        mode='lines+markers',
+        name='Nivel de señal'
+    ))
+
+    fig.update_layout(
+        title=f'Nivel de señal en el tiempo para {frequency:.3f} MHz',
+        xaxis_title='Tiempo',
+        yaxis_title='Nivel (dBµV/m)',
+        showlegend=True,
+        yaxis=dict(range=[0, max(100, df['level_dbuv_m'].max() if not df.empty else 100)])
+    )
 
     return fig
