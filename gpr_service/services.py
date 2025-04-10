@@ -5,6 +5,7 @@ import os
 import shutil
 import datetime
 from functools import lru_cache
+import math
 
 # Supresión de advertencias específicas de openpyxl
 warnings.simplefilter(action='ignore', category=UserWarning)
@@ -14,14 +15,18 @@ def load_environment_variables():
     return {
         'SERVER_ROUTE_GPR_2023': settings.SERVER_ROUTE_GPR_2023,
         'SERVER_ROUTE_GPR': settings.SERVER_ROUTE_GPR,
+        'SERVER_ROUTE_GPR_2025': settings.SERVER_ROUTE_GPR_2025,
         'FILE_INFORMES_GPR_2023': settings.FILE_INFORMES_GPR_2023,
         'FILE_INFORMES_GPR': settings.FILE_INFORMES_GPR,
+        'FILE_INFORMES_GPR_2025': settings.FILE_INFORMES_GPR_2025,
         'FILE_PACT_2024': settings.FILE_PACT_2024,
+        'FILE_PACT_2025': settings.FILE_PACT_2025,
         'FILE_INDICADORES_CCDE': settings.FILE_INDICADORES_CCDE,
         'FILE_INDICADORES_CCDR': settings.FILE_INDICADORES_CCDR,
         'FILE_INDICADORES_CCDS': settings.FILE_INDICADORES_CCDS,
         'COLUMNAS_INFORMES_GPR': settings.COLUMNAS_INFORMES_GPR,
         'SERVER_ROUTE_PACT_2024': settings.SERVER_ROUTE_PACT_2024,
+        'SERVER_ROUTE_PACT_2025': settings.SERVER_ROUTE_PACT_2025,
         'INDICADORES_GPR_CCDE': settings.INDICADORES_GPR_CCDE,
         'INDICADORES_GPR_CCDH': settings.INDICADORES_GPR_CCDH,
         'INDICADORES_GPR_CCDS': settings.INDICADORES_GPR_CCDS,
@@ -63,6 +68,43 @@ def load_environment_variables():
         'RUTA_CCDS_30': settings.RUTA_CCDS_30,
         'RUTA_CCDS_31': settings.RUTA_CCDS_31,
         'RUTA_CCDS_32': settings.RUTA_CCDS_32,
+        'RUTA_CCDE_01_ENE_2025': settings.RUTA_CCDE_01_ENE_2025,
+        'RUTA_CCDE_01_FEB_2025': settings.RUTA_CCDE_01_FEB_2025,
+        'RUTA_CCDE_01_MAR_2025': settings.RUTA_CCDE_01_MAR_2025,
+        'RUTA_CCDE_01_ABR_2025': settings.RUTA_CCDE_01_ABR_2025,
+        'RUTA_CCDE_01_MAY_2025': settings.RUTA_CCDE_01_MAY_2025,
+        'RUTA_CCDE_01_JUN_2025': settings.RUTA_CCDE_01_JUN_2025,
+        'RUTA_CCDE_01_JUL_2025': settings.RUTA_CCDE_01_JUL_2025,
+        'RUTA_CCDE_01_AGO_2025': settings.RUTA_CCDE_01_AGO_2025,
+        'RUTA_CCDE_01_SEP_2025': settings.RUTA_CCDE_01_SEP_2025,
+        'RUTA_CCDE_01_OCT_2025': settings.RUTA_CCDE_01_OCT_2025,
+        'RUTA_CCDE_01_NOV_2025': settings.RUTA_CCDE_01_NOV_2025,
+        'RUTA_CCDE_01_DIC_2025': settings.RUTA_CCDE_01_DIC_2025,
+        'RUTA_CCDE_02_2025': settings.RUTA_CCDE_02_2025,
+        'RUTA_CCDE_03_2025': settings.RUTA_CCDE_03_2025,
+        'RUTA_CCDE_04_2025': settings.RUTA_CCDE_04_2025,
+        'RUTA_CCDE_05_2025': settings.RUTA_CCDE_05_2025,
+        'RUTA_CCDE_06_2025': settings.RUTA_CCDE_06_2025,
+        'RUTA_CCDE_07_2025': settings.RUTA_CCDE_07_2025,
+        'RUTA_CCDE_09_2025': settings.RUTA_CCDE_09_2025,
+        'RUTA_CCDE_11_2025': settings.RUTA_CCDE_11_2025,
+        'RUTA_CCDH_01_2025': settings.RUTA_CCDH_01_2025,
+        'RUTA_CCDR_04_2025': settings.RUTA_CCDR_04_2025,
+        'RUTA_CCDS_03_2025': settings.RUTA_CCDS_03_2025,
+        'RUTA_CCDS_05_2025': settings.RUTA_CCDS_05_2025,
+        'RUTA_CCDS_08_2025': settings.RUTA_CCDS_08_2025,
+        'RUTA_CCDS_09_2025': settings.RUTA_CCDS_09_2025,
+        'RUTA_CCDS_10_2025': settings.RUTA_CCDS_10_2025,
+        'RUTA_CCDS_11_2025': settings.RUTA_CCDS_11_2025,
+        'RUTA_CCDS_12_2025': settings.RUTA_CCDS_12_2025,
+        'RUTA_CCDS_16_2025': settings.RUTA_CCDS_16_2025,
+        'RUTA_CCDS_17_2025': settings.RUTA_CCDS_17_2025,
+        'RUTA_CCDS_18_2025': settings.RUTA_CCDS_18_2025,
+        'RUTA_CCDS_23_2025': settings.RUTA_CCDS_23_2025,
+        'RUTA_CCDS_27_2025': settings.RUTA_CCDS_27_2025,
+        'RUTA_CCDS_30_2025': settings.RUTA_CCDS_30_2025,
+        'RUTA_CCDS_31_2025': settings.RUTA_CCDS_31_2025,
+        'RUTA_CCDS_32_2025': settings.RUTA_CCDS_32_2025,
     }
 
 
@@ -178,7 +220,7 @@ def sincronizar_informes(row, server_route, pdf_files):
             shutil.copyfile(f'{row['RUTA']}/{archivo_ruta}', f'{server_route}/{archivo_ruta}')
 
 
-def process_data(fecha_str='2024-03-31'):
+def process_data(fecha_str='2025-03-31'):
     env_vars = load_environment_variables()
 
     fecha_limite = pd.to_datetime(fecha_str) + pd.Timedelta(days=11)
@@ -212,7 +254,7 @@ def process_data(fecha_str='2024-03-31'):
 
 
 @lru_cache(maxsize=32)
-def process_data_cached(fecha_str='2024-03-31'):
+def process_data_cached(fecha_str='2025-03-31'):
     return process_data(fecha_str)
 
 
@@ -366,7 +408,7 @@ def procesar_mes_con_fecha(dataframe, fecha_str):
                 return sum(row[mes] * row[f"{mes}_den"] for mes in meses_evaluar if
                            pd.notnull(row[mes]) and pd.notnull(row[f"{mes}_den"]))
 
-    dataframe['CUMPLIR_META'] = dataframe.apply(calcular_cumplir_meta, axis=1)
+    dataframe['CUMPLIR_META'] = dataframe.apply(calcular_cumplir_meta, axis=1).apply(math.ceil)
 
     return dataframe
 
@@ -389,7 +431,7 @@ def actualizar_planificada(df):
                 # Actualizar el valor en el DataFrame
                 df.at[index, 'PLANIFICADA'] = nuevo_valor
     # Crear la columna PLANIFICADA_META como multiplicación de PLANIFICADA por META_ANUAL
-    df['PLANIFICADA_META'] = df['PLANIFICADA'] * df['META_ANUAL']
+    df['PLANIFICADA_META'] = (df['PLANIFICADA'] * df['META_ANUAL']).apply(math.ceil)
 
     return df
 

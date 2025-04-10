@@ -50,19 +50,28 @@ def fetch_data_from_db(request):
         WHERE city = %s AND tiempo BETWEEN %s AND %s AND frecuencia_hz BETWEEN %s AND %s
     """
 
+    # Query for DN data
+    query_dn = """
+            SELECT tiempo, frecuencia_hz, level_dbuv_m, city
+            FROM band_occupation_dn
+            WHERE city = %s AND tiempo BETWEEN %s AND %s AND frecuencia_hz BETWEEN %s AND %s
+        """
+
     params = [city, start_date, end_date, start_freq, end_freq]
 
     if last_query_time is not None:
         query_fm += " AND tiempo > %s"
         query_am += " AND tiempo > %s"
+        query_dn += " AND tiempo > %s"
         params.append(last_query_time)
 
     # Fetch data from both tables
     df_fm = pd.read_sql(query_fm, conn, params=params)
     df_am = pd.read_sql(query_am, conn, params=params)
+    df_dn = pd.read_sql(query_dn, conn, params=params)
 
     # Combine the dataframes
-    df = pd.concat([df_fm, df_am], ignore_index=True)
+    df = pd.concat([df_fm, df_am, df_dn], ignore_index=True)
 
     conn.close()
     return df

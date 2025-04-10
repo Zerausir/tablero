@@ -1,5 +1,6 @@
 import io
 import pandas as pd
+import math
 
 from django_plotly_dash import DjangoDash
 from django.conf import settings
@@ -70,6 +71,11 @@ app.layout = html.Div(children=[
             dcc.Download(id='download-excel')
         ], id='download-container', style={'display': 'none'})
     ], style={'marginBottom': 10}),
+
+    html.Div([
+        html.Button('Anexo 3.1', id='btn_anexo31'),
+        dcc.Download(id='download-anexo31')
+    ], id='download-container-anexo31', style={'marginBottom': 10}),
 
     # Stores for keeping the dataframes in the client side for downloading
     dcc.Store(id='stored-df-final'),
@@ -246,6 +252,94 @@ def download_excel_callback1(n_clicks, json_data, selected_date):
         filename = f"PACT2024_corte_{formatted_date}.xlsx"
 
         return dcc.send_data_frame(df.to_excel, filename=filename, index=False)
+
+
+@app.callback(
+    Output("download-anexo31", "data"),
+    [Input("btn_anexo31", "n_clicks")],
+    [State('stored-df-pact2024-verificables-filtered', 'data'),
+     State('stored-df-final-filtered', 'data'),
+     State('fecha-seleccionada', 'date')],
+    prevent_initial_call=True
+)
+def download_anexo31_callback(n_clicks, json_data_pact, json_data_verificables, selected_date):
+    if n_clicks is None:
+        raise PreventUpdate
+
+    if json_data_pact is not None and json_data_verificables is not None:
+        # Convertir los datos JSON a DataFrames
+        df_pact = pd.read_json(io.StringIO(json_data_pact), orient='split')
+        df_verificables = pd.read_json(io.StringIO(json_data_verificables), orient='split')
+
+        # Diccionario de meses en español
+        meses_esp = {
+            1: "ENERO", 2: "FEBRERO", 3: "MARZO", 4: "ABRIL",
+            5: "MAYO", 6: "JUNIO", 7: "JULIO", 8: "AGOSTO",
+            9: "SEPTIEMBRE", 10: "OCTUBRE", 11: "NOVIEMBRE", 12: "DICIEMBRE"
+        }
+
+        # Crear el archivo Excel temporal
+        fecha_dt = datetime.strptime(selected_date, "%Y-%m-%d")
+        mes = meses_esp[fecha_dt.month]
+        formatted_date = fecha_dt.strftime("%Y%m%d")
+        filename = f"Anexo_3.1_corte_{formatted_date}.xlsx"
+
+        with pd.ExcelWriter(filename, engine='xlsxwriter') as writer:
+            workbook = writer.book
+            worksheet = workbook.add_worksheet('Anexo 3.1')
+
+            # Formato para el título
+            title_format = workbook.add_format({
+                'bold': True,
+                'align': 'center',
+                'valign': 'vcenter'
+            })
+
+            # Escribir los títulos
+            worksheet.merge_range('A1:E1', 'ANEXO', title_format)
+            worksheet.merge_range('A2:E2', '3.1 Porcentaje de cumplimiento PACT', title_format)
+            worksheet.merge_range('A3:E3',
+                                  f'RESUMEN RESULTADOS DE CUMPLIMIENTO DE INDICADORES PACT-2024 A {mes} DE 2024',
+                                  title_format)
+
+            # Preparar los datos para el Anexo 3.1
+            anexo_data = []
+            for index, row in df_pact.iterrows():
+                indicador_corto = row['INDICADOR_CORTO']
+                verificables_df = df_verificables[df_verificables['INDICADOR_CORTO'] == indicador_corto]
+
+                # Crear lista numerada de informes
+                informes_list = verificables_df['Nro. INFORME'].astype(str).tolist()
+                informes = "INFORMES:\n" + '\n'.join(f"{i + 1}. {informe}" for i, informe in enumerate(informes_list))
+
+                anexo_data.append({
+                    'Nro.': index + 1,
+                    'INDICADOR PACT 2024': row['INDICADOR'],
+                    f'TOTAL A CUMPLIR A {mes} DE 2024': math.ceil(row['CUMPLIR_META']) if pd.notnull(
+                        row['CUMPLIR_META']) else 0,
+                    f'ACTIVIDADES CUMPLIDAS A {mes} DE 2024': math.ceil(row['CANTIDAD_VERIFICABLES']) if pd.notnull(
+                        row['CANTIDAD_VERIFICABLES']) else 0,
+                    'VERIFICABLES': informes
+                })
+
+            # Crear el DataFrame y escribirlo
+            df_anexo = pd.DataFrame(anexo_data)
+            df_anexo.to_excel(writer, sheet_name='Anexo 3.1', startrow=3, index=False)
+
+            # Ajustar el ancho de las columnas
+            worksheet.set_column('A:A', 5)  # Nro.
+            worksheet.set_column('B:B', 40)  # INDICADOR
+            worksheet.set_column('C:C', 15)  # TOTAL A CUMPLIR
+            worksheet.set_column('D:D', 15)  # ACTIVIDADES CUMPLIDAS
+            worksheet.set_column('E:E', 60)  # VERIFICABLES
+
+            # Formato para el texto envuelto
+            wrap_format = workbook.add_format({'text_wrap': True})
+            worksheet.set_column('E:E', 60, wrap_format)
+
+        # Leer el archivo guardado y enviarlo
+        with open(filename, 'rb') as f:
+            return dcc.send_file(filename)
 
 
 @app.callback(
