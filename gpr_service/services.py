@@ -53,6 +53,8 @@ def load_environment_variables():
         'RUTA_CCDE_11': settings.RUTA_CCDE_11,
         'RUTA_CCDH_01': settings.RUTA_CCDH_01,
         'RUTA_CCDR_04': settings.RUTA_CCDR_04,
+        'RUTA_CCDR_06': settings.RUTA_CCDR_06,
+        'RUTA_CCDS_01': settings.RUTA_CCDS_01,
         'RUTA_CCDS_03': settings.RUTA_CCDS_03,
         'RUTA_CCDS_05': settings.RUTA_CCDS_05,
         'RUTA_CCDS_08': settings.RUTA_CCDS_08,
@@ -60,6 +62,7 @@ def load_environment_variables():
         'RUTA_CCDS_10': settings.RUTA_CCDS_10,
         'RUTA_CCDS_11': settings.RUTA_CCDS_11,
         'RUTA_CCDS_12': settings.RUTA_CCDS_12,
+        'RUTA_CCDS_13': settings.RUTA_CCDS_13,
         'RUTA_CCDS_16': settings.RUTA_CCDS_16,
         'RUTA_CCDS_17': settings.RUTA_CCDS_17,
         'RUTA_CCDS_18': settings.RUTA_CCDS_18,
@@ -86,25 +89,28 @@ def load_environment_variables():
         'RUTA_CCDE_05_2025': settings.RUTA_CCDE_05_2025,
         'RUTA_CCDE_06_2025': settings.RUTA_CCDE_06_2025,
         'RUTA_CCDE_07_2025': settings.RUTA_CCDE_07_2025,
+        'RUTA_CCDE_08_2025': settings.RUTA_CCDE_08_2025,
         'RUTA_CCDE_09_2025': settings.RUTA_CCDE_09_2025,
+        'RUTA_CCDE_10_2025': settings.RUTA_CCDE_10_2025,
         'RUTA_CCDE_11_2025': settings.RUTA_CCDE_11_2025,
         'RUTA_CCDH_01_2025': settings.RUTA_CCDH_01_2025,
+        'RUTA_CCDR_01_2025': settings.RUTA_CCDR_01_2025,
         'RUTA_CCDR_04_2025': settings.RUTA_CCDR_04_2025,
+        'RUTA_CCDR_06_2025': settings.RUTA_CCDR_06_2025,
+        'RUTA_CCDS_01_2025': settings.RUTA_CCDS_01_2025,
         'RUTA_CCDS_03_2025': settings.RUTA_CCDS_03_2025,
-        'RUTA_CCDS_05_2025': settings.RUTA_CCDS_05_2025,
         'RUTA_CCDS_08_2025': settings.RUTA_CCDS_08_2025,
         'RUTA_CCDS_09_2025': settings.RUTA_CCDS_09_2025,
         'RUTA_CCDS_10_2025': settings.RUTA_CCDS_10_2025,
         'RUTA_CCDS_11_2025': settings.RUTA_CCDS_11_2025,
         'RUTA_CCDS_12_2025': settings.RUTA_CCDS_12_2025,
+        'RUTA_CCDS_13_2025': settings.RUTA_CCDS_13_2025,
         'RUTA_CCDS_16_2025': settings.RUTA_CCDS_16_2025,
         'RUTA_CCDS_17_2025': settings.RUTA_CCDS_17_2025,
         'RUTA_CCDS_18_2025': settings.RUTA_CCDS_18_2025,
         'RUTA_CCDS_23_2025': settings.RUTA_CCDS_23_2025,
         'RUTA_CCDS_27_2025': settings.RUTA_CCDS_27_2025,
         'RUTA_CCDS_30_2025': settings.RUTA_CCDS_30_2025,
-        'RUTA_CCDS_31_2025': settings.RUTA_CCDS_31_2025,
-        'RUTA_CCDS_32_2025': settings.RUTA_CCDS_32_2025,
     }
 
 
@@ -137,7 +143,8 @@ def read_excel_data2023(server_route, file_informes, columnas_informes):
     return df_final
 
 
-def read_excel_data2024(server_route, file_informes, columnas_informes):
+def read_excel_data(server_route, file_informes, columnas_informes, year=2024):
+    """Función generalizada para leer datos de Excel de cualquier año."""
     # Read DATOS sheet
     df_datos = pd.read_excel(f'{server_route}/{file_informes}', sheet_name='DATOS')
     df_datos['RUTA'] = df_datos['RUTA'].str.replace('\\', '/')
@@ -177,27 +184,47 @@ def check_pdf_exists(pdf_files, nro_informe):
 def check_pdf_exists_in_route(row):
     if row['RUTA'] != 'nan':
         ruta = row['RUTA']
-        for file in os.listdir(ruta):
-            if file.startswith(str(row['Nro. INFORME'])) and file.endswith('.pdf'):
-                return 'SI'
+        try:
+            if os.path.exists(ruta):
+                for file in os.listdir(ruta):
+                    if file.startswith(str(row['Nro. INFORME'])) and file.endswith('.pdf'):
+                        return 'SI'
+        except Exception as e:
+            print(f"Error al verificar ruta {ruta}: {str(e)}")
     return 'NO'
 
 
-def create_ruta2_informe_df(env_vars, df_datos2023, df_datos2024):
+def create_ruta2_informe_df(env_vars, df_datos2023, df_datos, year=2024):
+    # Filtrar rutas según el año
     ruta_columns = [key for key in env_vars.keys() if key.startswith('RUTA_')]
+    if year == 2025:
+        ruta_columns = [key for key in ruta_columns if key.endswith('_2025')]
+    else:  # Para 2024 u otros años
+        ruta_columns = [key for key in ruta_columns if not key.endswith('_2025')]
+
     data = []
 
     for ruta_column in ruta_columns:
         ruta = env_vars[ruta_column]
-        indicador_corto = ruta_column[5:12].replace('_', '-')  # Extrae los 6 caracteres que siguen después de 'RUTA_'
+
+        # Extraer el indicador corto del nombre de la columna, considerando el sufijo _2025
+        base_name = ruta_column
+        if year == 2025 and ruta_column.endswith('_2025'):
+            base_name = ruta_column[:-5]  # Eliminar el sufijo _2025
+
+        indicador_corto = base_name[5:12].replace('_', '-')  # Extrae los caracteres que siguen después de 'RUTA_'
+
         if os.path.exists(ruta):
             for file in os.listdir(ruta):
                 if file.endswith('.pdf'):
                     nro_informe = file[:19]  # Asume que los primeros 19 caracteres son el número de informe
-                    if file[13] == '3':
+
+                    # Determinar el DataFrame correcto basado en el año y otros criterios
+                    if year == 2023 or file[13] == '3':
                         matched_row = df_datos2023[df_datos2023['Nro. INFORME'] == str(nro_informe)]
                     else:
-                        matched_row = df_datos2024[df_datos2024['Nro. INFORME'] == str(nro_informe)]
+                        matched_row = df_datos[df_datos['Nro. INFORME'] == str(nro_informe)]
+
                     if not matched_row.empty:
                         matched_row = matched_row.iloc[0].to_dict()
                         matched_row['RUTA_SERVER'] = ruta
@@ -212,53 +239,100 @@ def sincronizar_informes(row, server_route, pdf_files):
     if row['RUTA'] != 'nan':
         if row['INFORME_FINALIZADO_SERVIDOR'] == 'SI' and row['INFORME_FINALIZADO_RUTA'] == 'NO':
             archivo_servidor = [f for f in pdf_files if f.startswith(str(row['Nro. INFORME']))][0]
-            shutil.copyfile(f'{server_route}/{archivo_servidor}', f'{row['RUTA']}/{archivo_servidor}')
+            shutil.copyfile(f'{server_route}/{archivo_servidor}', f'{row["RUTA"]}/{archivo_servidor}')
         elif row['INFORME_FINALIZADO_SERVIDOR'] == 'NO' and row['INFORME_FINALIZADO_RUTA'] == 'SI':
             ruta_archivos = os.listdir(row['RUTA'])
             archivo_ruta = [f for f in ruta_archivos if f.startswith(str(row['Nro. INFORME'])) and f.endswith('.pdf')][
                 0]
-            shutil.copyfile(f'{row['RUTA']}/{archivo_ruta}', f'{server_route}/{archivo_ruta}')
+            shutil.copyfile(f'{row["RUTA"]}/{archivo_ruta}', f'{server_route}/{archivo_ruta}')
 
 
-def process_data(fecha_str='2025-03-31'):
+def process_data(fecha_str='2024-03-31', year=2024):
+    """Procesar datos según el año especificado."""
     env_vars = load_environment_variables()
 
     fecha_limite = pd.to_datetime(fecha_str) + pd.Timedelta(days=11)
 
+    # Siempre cargar los datos de 2023 como referencia
     df_original2023 = read_excel_data2023(env_vars['SERVER_ROUTE_GPR_2023'], env_vars['FILE_INFORMES_GPR_2023'],
                                           env_vars['COLUMNAS_INFORMES_GPR'])
     df_original2023.rename(columns={'INDICADOR AÑO': 'INDICADOR_AÑO', 'INDICADOR CORTO': 'INDICADOR_CORTO'},
                            inplace=True)
 
-    df_original2024 = read_excel_data2024(env_vars['SERVER_ROUTE_GPR'], env_vars['FILE_INFORMES_GPR'],
-                                          env_vars['COLUMNAS_INFORMES_GPR'])
+    # Cargar datos según el año seleccionado
+    if year == 2024:
+        server_route = env_vars['SERVER_ROUTE_GPR']
+        file_informes = env_vars['FILE_INFORMES_GPR']
+    elif year == 2025:
+        server_route = env_vars['SERVER_ROUTE_GPR_2025']
+        file_informes = env_vars['FILE_INFORMES_GPR_2025']
+    else:
+        raise ValueError(f"Año no soportado: {year}")
+
+    df_original = read_excel_data(server_route, file_informes, env_vars['COLUMNAS_INFORMES_GPR'], year)
 
     # Get the list of all .pdf files in the SERVER_ROUTE directory
-    pdf_files = [f for f in os.listdir(env_vars['SERVER_ROUTE_GPR']) if f.endswith('.pdf')]
+    pdf_files = [f for f in os.listdir(server_route) if f.endswith('.pdf')]
 
     # Apply functions to the dataframe
-    df_original2024['INFORME_FINALIZADO_SERVIDOR'] = df_original2024['Nro. INFORME'].apply(
+    df_original['INFORME_FINALIZADO_SERVIDOR'] = df_original['Nro. INFORME'].apply(
         lambda x: check_pdf_exists(pdf_files, x))
-    df_original2024['INFORME_FINALIZADO_RUTA'] = df_original2024.apply(check_pdf_exists_in_route, axis=1)
-    df_original2024.rename(columns={'INDICADOR AÑO': 'INDICADOR_AÑO', 'INDICADOR CORTO': 'INDICADOR_CORTO'},
-                           inplace=True)
-    df_original2024['RUTA_SERVER'] = pd.NA
-    df_original_rutas = create_ruta2_informe_df(env_vars, df_original2023, df_original2024)
+    df_original['INFORME_FINALIZADO_RUTA'] = df_original.apply(check_pdf_exists_in_route, axis=1)
+    df_original.rename(columns={'INDICADOR AÑO': 'INDICADOR_AÑO', 'INDICADOR CORTO': 'INDICADOR_CORTO'},
+                       inplace=True)
+    df_original['RUTA_SERVER'] = pd.NA
+
+    # Crear y procesar el DataFrame de rutas
+    df_original_rutas = create_ruta2_informe_df(env_vars, df_original2023, df_original, year)
+
+    # Filtrar por fecha antes de procesar CCDE-10
     df_final = df_original_rutas.sort_values(by='INDICADOR_CORTO')
     df_final = df_final[
         ['INDICADOR_CORTO', 'Nro. ACTIVIDAD', 'NOMBRE DEL SISTEMA', 'CATEGORÍA', 'DOCUMENTO / ANTECEDENTE',
          'RUTA_SERVER', 'Nro INSPECCIONES', 'Nro. INFORME', 'FECHA DE INFORME', 'RESPONSABLE DE ACTIVIDAD']]
     df_final = df_final[df_final['FECHA DE INFORME'] <= fecha_limite]
 
+    # Procesamiento especial para CCDE-10 (solo si estamos en 2025)
+    if year == 2025 and 'RUTA_CCDE_10_2025' in env_vars:
+        ruta_ccde10 = env_vars['RUTA_CCDE_10_2025']
+        if os.path.exists(ruta_ccde10):
+            # Contar archivos hasta fecha_limite
+            ccde10_files = []
+            for file in os.listdir(ruta_ccde10):
+                file_path = os.path.join(ruta_ccde10, file)
+                if os.path.isfile(file_path):
+                    mod_time = os.path.getmtime(file_path)
+                    mod_date = pd.to_datetime(mod_time, unit='s')
+                    if mod_date <= fecha_limite:
+                        ccde10_files.append(file)
+
+            if ccde10_files:
+                # Crear una única fila para CCDE-10 con el conteo
+                new_row = pd.DataFrame([{
+                    'INDICADOR_CORTO': 'CCDE-10',
+                    'Nro. ACTIVIDAD': None,
+                    'NOMBRE DEL SISTEMA': 'INFORMES AP-PAS',
+                    'CATEGORÍA': 'INFORMES',
+                    'DOCUMENTO / ANTECEDENTE': 'SEGUIMIENTO ACTOS INICIO PAS',
+                    'RUTA_SERVER': ruta_ccde10,
+                    'Nro INSPECCIONES': len(ccde10_files),
+                    'Nro. INFORME': 'CCDE-10-INF',
+                    'FECHA DE INFORME': fecha_limite,  # Usamos fecha_limite para asegurar que pase el filtro
+                    'RESPONSABLE DE ACTIVIDAD': 'AUTOMÁTICO'
+                }])
+
+                # Añadir la fila de CCDE-10 al DataFrame final
+                df_final = pd.concat([df_final, new_row], ignore_index=True)
+
     return df_final
 
 
 @lru_cache(maxsize=32)
-def process_data_cached(fecha_str='2025-03-31'):
-    return process_data(fecha_str)
+def process_data_cached(fecha_str='2024-03-31', year=2024):
+    return process_data(fecha_str, year)
 
 
-"""CARGA DE DATOS PACT 2024"""
+"""CARGA DE DATOS PACT"""
 
 
 def cargar_datos1(ruta_archivo):
@@ -303,12 +377,26 @@ def denominadores_indicadores_dinamicos(ruta1, ruta2, ruta3):
     return resultado.reset_index()
 
 
-def pact_2024(fecha_str='2024-01-31'):
+def pact_data(fecha_str='2024-01-31', year=2024):
+    """Función general para cargar datos de PACT según el año."""
     env_vars = load_environment_variables()
-    ruta_archivo = f'{env_vars['SERVER_ROUTE_PACT_2024']}/{env_vars['FILE_PACT_2024']}'
-    ruta_discretos_CCDE = f'{env_vars['SERVER_ROUTE_PACT_2024']}/{env_vars['FILE_INDICADORES_CCDE']}'
-    ruta_discretos_CCDR = f'{env_vars['SERVER_ROUTE_PACT_2024']}/{env_vars['FILE_INDICADORES_CCDR']}'
-    ruta_discretos_CCDS = f'{env_vars['SERVER_ROUTE_PACT_2024']}/{env_vars['FILE_INDICADORES_CCDS']}'
+
+    # Seleccionar las rutas de archivo según el año
+    if year == 2024:
+        ruta_archivo = f'{env_vars["SERVER_ROUTE_PACT_2024"]}/{env_vars["FILE_PACT_2024"]}'
+        ruta_discretos_CCDE = f'{env_vars["SERVER_ROUTE_PACT_2024"]}/{env_vars["FILE_INDICADORES_CCDE"]}'
+        ruta_discretos_CCDR = f'{env_vars["SERVER_ROUTE_PACT_2024"]}/{env_vars["FILE_INDICADORES_CCDR"]}'
+        ruta_discretos_CCDS = f'{env_vars["SERVER_ROUTE_PACT_2024"]}/{env_vars["FILE_INDICADORES_CCDS"]}'
+    elif year == 2025:
+        ruta_archivo = f'{env_vars["SERVER_ROUTE_PACT_2025"]}/{env_vars["FILE_PACT_2025"]}'
+        # Para 2025, asumimos que las rutas de los indicadores discretos tienen el mismo nombre
+        # Si tienen nombres diferentes, deberías añadir las variables correspondientes en settings.py
+        ruta_discretos_CCDE = f'{env_vars["SERVER_ROUTE_PACT_2025"]}/{env_vars["FILE_INDICADORES_CCDE"]}'
+        ruta_discretos_CCDR = f'{env_vars["SERVER_ROUTE_PACT_2025"]}/{env_vars["FILE_INDICADORES_CCDR"]}'
+        ruta_discretos_CCDS = f'{env_vars["SERVER_ROUTE_PACT_2025"]}/{env_vars["FILE_INDICADORES_CCDS"]}'
+    else:
+        raise ValueError(f"Año no soportado: {year}")
+
     xl = cargar_datos1(ruta_archivo)
     configs = {
         'CCDE': {
@@ -381,6 +469,7 @@ def pact_2024(fecha_str='2024-01-31'):
 
 
 def procesar_mes_con_fecha(dataframe, fecha_str):
+    """Procesa los datos según la fecha de corte proporcionada."""
     fecha = datetime.datetime.strptime(fecha_str, '%Y-%m-%d')
     meses = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"]
     indice_mes = fecha.month - 1
@@ -401,10 +490,16 @@ def procesar_mes_con_fecha(dataframe, fecha_str):
             valores_no_nulos = row[meses_evaluar].dropna()
             return valores_no_nulos.sum() * row['META_ANUAL'] if not valores_no_nulos.empty else 0.0
         else:  # Para tipo DISCRETO
-            if row['INDICADOR_CORTO'] in ['CCDR-04']:
+            # Caso especial para CCDR-01 (indicador PERIODO)
+            if row['INDICADOR_CORTO'] == 'CCDR-01':
+                # Para CCDR-01, el denominador "a cumplir al corte" debe ser igual al global
+                return row['META_ANUAL']  # Retorna directamente la META_ANUAL (6)
+            elif row['INDICADOR_CORTO'] in ['CCDR-04', 'CCDR-06']:
+                # Caso especial para indicadores ACUMULADOS como CCDR-04 y CCDR-06
                 return sum(row[f"{mes}_den"] * row['META_ANUAL'] for mes in meses_evaluar if
                            pd.notnull(row[mes]) and pd.notnull(row[f"{mes}_den"]))
             else:
+                # Comportamiento normal para otros indicadores DISCRETO
                 return sum(row[mes] * row[f"{mes}_den"] for mes in meses_evaluar if
                            pd.notnull(row[mes]) and pd.notnull(row[f"{mes}_den"]))
 
@@ -414,9 +509,7 @@ def procesar_mes_con_fecha(dataframe, fecha_str):
 
 
 def actualizar_planificada(df):
-    # # Lista de INDICADOR_CORTO que requieren actualización siempre
-    # indicadores_actualizar = ['CCDE-05', 'CCDE-06', 'CCDE-07', 'CCDE-09']
-
+    """Actualiza los valores de PLANIFICADA en el DataFrame proporcionado."""
     # Verificar si 'PLANIFICADA' existe en el DataFrame
     if 'PLANIFICADA' not in df.columns:
         raise ValueError("La columna 'PLANIFICADA' no está presente en el DataFrame.")
@@ -430,8 +523,25 @@ def actualizar_planificada(df):
                 nuevo_valor = row['CUMPLIR']
                 # Actualizar el valor en el DataFrame
                 df.at[index, 'PLANIFICADA'] = nuevo_valor
+
+    # Añadir código para identificar filas problemáticas
+    problematic_rows = df[df['PLANIFICADA'].isna() | df['META_ANUAL'].isna()]
+    if not problematic_rows.empty:
+        print("Filas con valores NaN encontradas:")
+        print(problematic_rows[['INDICADOR_CORTO', 'PLANIFICADA', 'META_ANUAL']])
+
     # Crear la columna PLANIFICADA_META como multiplicación de PLANIFICADA por META_ANUAL
-    df['PLANIFICADA_META'] = (df['PLANIFICADA'] * df['META_ANUAL']).apply(math.ceil)
+    # Primero realizar la multiplicación
+    multiplicacion = df['PLANIFICADA'] * df['META_ANUAL']
+
+    # Función segura para aplicar math.ceil que maneja NaN
+    def safe_ceil(x):
+        if pd.isna(x):
+            return x  # Mantener NaN como NaN
+        return math.ceil(x)
+
+    # Aplicar la función segura
+    df['PLANIFICADA_META'] = multiplicacion.apply(safe_ceil)
 
     return df
 
@@ -440,6 +550,7 @@ def actualizar_planificada(df):
 
 
 def preparar_datos(df):
+    """Prepara los datos para análisis, añadiendo la columna de meses."""
     # Convertir la columna 'FECHA DE INFORME' a tipo datetime
     df['FECHA DE INFORME'] = pd.to_datetime(df['FECHA DE INFORME'])
 
@@ -453,6 +564,7 @@ def preparar_datos(df):
 
 
 def informes_acumulados_por_fecha(df, fecha_final):
+    """Calcula los informes acumulados hasta la fecha especificada."""
     # Convertir la cadena de fecha de entrada a tipo datetime si es necesario
     if isinstance(fecha_final, str):
         fecha_final = pd.to_datetime(fecha_final)
@@ -468,6 +580,7 @@ def informes_acumulados_por_fecha(df, fecha_final):
 
 
 def verificables(data, fecha_str='2024-01-31'):
+    """Calcula los verificables hasta la fecha especificada."""
     data_preparada = preparar_datos(data)
     fecha_con_dias_adicionales = pd.to_datetime(fecha_str) + pd.Timedelta(days=11)
     resultado = informes_acumulados_por_fecha(data_preparada, fecha_con_dias_adicionales)
@@ -475,5 +588,11 @@ def verificables(data, fecha_str='2024-01-31'):
 
 
 def pac_verificables(df1, df2):
+    """Combina los DataFrames de PAC y verificables."""
     resultado = pd.merge(df1, df2, how='outer', on='INDICADOR_CORTO')
     return resultado.round(2)
+
+
+# Alias para compatibilidad con código existente
+pact_2024 = lambda fecha_str='2024-01-31': pact_data(fecha_str, 2024)
+pact_2025 = lambda fecha_str='2025-01-31': pact_data(fecha_str, 2025)
