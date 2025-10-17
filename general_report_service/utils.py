@@ -432,21 +432,29 @@ def update_station_plot_am(selected_frequencies: list, stored_data: list, autori
             return 0
 
         def aut(row):
-            """function to return a specific value if the value in every row of the column 'level' meet the
-            condition"""
-            if row['Fecha_fin'] != 0 and row['level'] == 0 and row['tipo'] == 'S':
-                return 0
-            elif row['Fecha_fin'] != 0 and row['level'] != 0 and row['tipo'] == 'S':
-                return row['level']
+            """function to return a specific value if there's an active suspension authorization"""
+            # Buscar en el DataFrame si hay alguna autorización de suspensión activa para esta fecha
+            fecha_actual = pd.to_datetime(row['Tiempo'])
+            for _, auth_row in df_filtered.iterrows():
+                if (auth_row['tipo'] == 'S' and
+                        auth_row['Fecha_inicio'] != 0 and auth_row['Fecha_fin'] != 0):
+                    fecha_inicio = pd.to_datetime(auth_row['Fecha_inicio'])
+                    fecha_fin = pd.to_datetime(auth_row['Fecha_fin'])
+                    if fecha_inicio <= fecha_actual <= fecha_fin:
+                        return row['level'] if row['level'] != 0 else 0
             return 0
 
         def autbp(row):
-            """function to return a specific value if the value in every row of the column 'level' meet the
-            condition"""
-            if row['Fecha_fin'] != 0 and row['level'] == 0 and row['tipo'] == 'BP':
-                return 0
-            elif row['Fecha_fin'] != 0 and row['level'] != 0 and row['tipo'] == 'BP':
-                return row['level']
+            """function to return a specific value if there's an active low power authorization"""
+            # Buscar en el DataFrame si hay alguna autorización de baja potencia activa para esta fecha
+            fecha_actual = pd.to_datetime(row['Tiempo'])
+            for _, auth_row in df_filtered.iterrows():
+                if (auth_row['tipo'] == 'BP' and
+                        auth_row['Fecha_inicio'] != 0 and auth_row['Fecha_fin'] != 0):
+                    fecha_inicio = pd.to_datetime(auth_row['Fecha_inicio'])
+                    fecha_fin = pd.to_datetime(auth_row['Fecha_fin'])
+                    if fecha_inicio <= fecha_actual <= fecha_fin:
+                        return row['level'] if row['level'] != 0 else 0
             return 0
 
         """create a new column in the df_filtered frame for every definition (minus, bet, plus, valor, aut)"""
@@ -739,17 +747,29 @@ def update_station_plot_fm(selected_frequencies: list, stored_data: list, autori
             return 0
 
         def aut(row):
-            if row['Fecha_fin'] != 0 and row['level'] == 0 and row['tipo'] == 'S':
-                return 0
-            elif row['Fecha_fin'] != 0 and row['level'] != 0 and row['tipo'] == 'S':
-                return row['level']
+            """function to return a specific value if there's an active suspension authorization"""
+            # Buscar en el DataFrame si hay alguna autorización de suspensión activa para esta fecha
+            fecha_actual = pd.to_datetime(row['Tiempo'])
+            for _, auth_row in df_filtered.iterrows():
+                if (auth_row['tipo'] == 'S' and
+                        auth_row['Fecha_inicio'] != 0 and auth_row['Fecha_fin'] != 0):
+                    fecha_inicio = pd.to_datetime(auth_row['Fecha_inicio'])
+                    fecha_fin = pd.to_datetime(auth_row['Fecha_fin'])
+                    if fecha_inicio <= fecha_actual <= fecha_fin:
+                        return row['level'] if row['level'] != 0 else 0
             return 0
 
         def autbp(row):
-            if row['Fecha_fin'] != 0 and row['level'] == 0 and row['tipo'] == 'BP':
-                return 0
-            elif row['Fecha_fin'] != 0 and row['level'] != 0 and row['tipo'] == 'BP':
-                return row['level']
+            """function to return a specific value if there's an active low power authorization"""
+            # Buscar en el DataFrame si hay alguna autorización de baja potencia activa para esta fecha
+            fecha_actual = pd.to_datetime(row['Tiempo'])
+            for _, auth_row in df_filtered.iterrows():
+                if (auth_row['tipo'] == 'BP' and
+                        auth_row['Fecha_inicio'] != 0 and auth_row['Fecha_fin'] != 0):
+                    fecha_inicio = pd.to_datetime(auth_row['Fecha_inicio'])
+                    fecha_fin = pd.to_datetime(auth_row['Fecha_fin'])
+                    if fecha_inicio <= fecha_actual <= fecha_fin:
+                        return row['level'] if row['level'] != 0 else 0
             return 0
 
         df_filtered['minus'] = df_filtered.apply(lambda row: minus(row), axis=1)
@@ -1055,21 +1075,29 @@ def update_station_plot_tv(selected_frequencies: list, stored_data: list, autori
             return 0
 
         def aut(row):
-            """function to return a specific value if the value in every row of the column 'level' meet the
-            condition"""
-            if row['Fecha_fin'] != 0 and row['level'] == 0 and row['tipo'] == 'S':
-                return 0
-            elif row['Fecha_fin'] != 0 and row['level'] != 0 and row['tipo'] == 'S':
-                return row['level']
+            """function to return a specific value if there's an active suspension authorization"""
+            # Buscar en el DataFrame si hay alguna autorización de suspensión activa para esta fecha
+            fecha_actual = pd.to_datetime(row['Tiempo'])
+            for _, auth_row in df_filtered.iterrows():
+                if (auth_row['tipo'] == 'S' and
+                        auth_row['Fecha_inicio'] != 0 and auth_row['Fecha_fin'] != 0):
+                    fecha_inicio = pd.to_datetime(auth_row['Fecha_inicio'])
+                    fecha_fin = pd.to_datetime(auth_row['Fecha_fin'])
+                    if fecha_inicio <= fecha_actual <= fecha_fin:
+                        return row['level'] if row['level'] != 0 else 0
             return 0
 
         def autbp(row):
-            """function to return a specific value if the value in every row of the column 'level' meet the
-            condition"""
-            if row['Fecha_fin'] != 0 and row['level'] == 0 and row['tipo'] == 'BP':
-                return 0
-            elif row['Fecha_fin'] != 0 and row['level'] != 0 and row['tipo'] == 'BP':
-                return row['level']
+            """function to return a specific value if there's an active low power authorization"""
+            # Buscar en el DataFrame si hay alguna autorización de baja potencia activa para esta fecha
+            fecha_actual = pd.to_datetime(row['Tiempo'])
+            for _, auth_row in df_filtered.iterrows():
+                if (auth_row['tipo'] == 'BP' and
+                        auth_row['Fecha_inicio'] != 0 and auth_row['Fecha_fin'] != 0):
+                    fecha_inicio = pd.to_datetime(auth_row['Fecha_inicio'])
+                    fecha_fin = pd.to_datetime(auth_row['Fecha_fin'])
+                    if fecha_inicio <= fecha_actual <= fecha_fin:
+                        return row['level'] if row['level'] != 0 else 0
             return 0
 
         """create a new column in the df_filtered frame for every definition (minus, bet, plus, valor, aut)"""
