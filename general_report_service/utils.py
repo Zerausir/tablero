@@ -251,6 +251,12 @@ def create_heatmap_data(df: pd.DataFrame, selected_frequencies=None) -> dict:
 
 def create_heatmap_layout(df_original1, df_original2, df_original3, selected_freq1=None, selected_freq2=None,
                           selected_freq3=None):
+    """
+    Create the layout with tabs including the new 'Generar Reporte RTV' tab
+    """
+    from django.conf import settings
+    import json
+
     dropdown1 = create_frequency_dropdown('frequency-dropdown1', df_original1, "Seleccione una Frecuencia",
                                           selected_freq1)
     dropdown2 = create_frequency_dropdown('frequency-dropdown2', df_original2, "Seleccione una Frecuencia",
@@ -278,9 +284,9 @@ def create_heatmap_layout(df_original1, df_original2, df_original3, selected_fre
             html.Div(id='station-plots-container-am'),
         ]),
         dcc.Tab(label='Estaciones con Observaciones', value='tab-4', children=[
-            html.Div([  # Contenedor para las tablas y el botón
+            html.Div([
                 html.Div(id='warnings-container'),
-                html.Div(  # Contenedor para el botón y el componente de descarga
+                html.Div(
                     children=[
                         html.Button(
                             'Descargar Tablas en Excel',
@@ -297,9 +303,109 @@ def create_heatmap_layout(df_original1, df_original2, df_original3, selected_fre
                         ),
                         dcc.Download(id='download-excel'),
                     ],
-                    style={'textAlign': 'center'}  # Centra el botón
+                    style={'textAlign': 'center'}
                 ),
             ]),
+        ]),
+        dcc.Tab(label='Generar Reporte RTV', value='tab-5', children=[
+            html.Div([
+                html.H3('Generar Reporte General RTV', style={'textAlign': 'center', 'margin': '20px'}),
+
+                # Selector de Ciudad
+                html.Div([
+                    html.Label('Ciudad:', style={'fontWeight': 'bold', 'marginRight': '10px'}),
+                    dcc.Dropdown(
+                        id='report-city-dropdown',
+                        options=[{'label': ciudad, 'value': ciudad} for ciudad in json.loads(settings.CITIES)],
+                        placeholder="Selecciona una ciudad",
+                        style={'width': '300px'}
+                    ),
+                ], style={'margin': '20px', 'display': 'flex', 'alignItems': 'center'}),
+
+                # Selectores de Fecha
+                html.Div([
+                    html.Label('Fecha Inicio:', style={'fontWeight': 'bold', 'marginRight': '10px'}),
+                    dcc.DatePickerSingle(
+                        id='report-start-date',
+                        placeholder='Selecciona fecha inicial',
+                        display_format='YYYY-MM-DD',
+                        style={'marginRight': '30px'}
+                    ),
+                    html.Label('Fecha Fin:', style={'fontWeight': 'bold', 'marginRight': '10px'}),
+                    dcc.DatePickerSingle(
+                        id='report-end-date',
+                        placeholder='Selecciona fecha final',
+                        display_format='YYYY-MM-DD'
+                    ),
+                ], style={'margin': '20px', 'display': 'flex', 'alignItems': 'center'}),
+
+                # Umbrales
+                html.Div([
+                    html.H4('Umbrales (dBµV/m):', style={'fontWeight': 'bold', 'margin': '20px 0 10px 20px'}),
+                ]),
+
+                html.Div([
+                    html.Label('Umbral AM:', style={'fontWeight': 'bold', 'marginRight': '10px'}),
+                    dcc.Input(
+                        id='report-umbral-am',
+                        type='number',
+                        placeholder='Ej: 40',
+                        value=40,
+                        style={'width': '100px', 'marginRight': '30px'}
+                    ),
+                    html.Label('Umbral FM:', style={'fontWeight': 'bold', 'marginRight': '10px'}),
+                    dcc.Input(
+                        id='report-umbral-fm',
+                        type='number',
+                        placeholder='Ej: 30',
+                        value=30,
+                        style={'width': '100px', 'marginRight': '30px'}
+                    ),
+                    html.Label('Umbral TV:', style={'fontWeight': 'bold', 'marginRight': '10px'}),
+                    dcc.Input(
+                        id='report-umbral-tv',
+                        type='number',
+                        placeholder='Ej: 47',
+                        value=47,
+                        style={'width': '100px'}
+                    ),
+                ], style={'margin': '10px 20px', 'display': 'flex', 'alignItems': 'center'}),
+
+                # Botón de descarga
+                html.Div([
+                    html.Button(
+                        'Generar y Descargar Reporte Excel',
+                        id='generate-report-button',
+                        n_clicks=0,
+                        style={
+                            'margin': '30px',
+                            'padding': '15px 30px',
+                            'backgroundColor': '#2196F3',
+                            'color': 'white',
+                            'border': 'none',
+                            'borderRadius': '4px',
+                            'cursor': 'pointer',
+                            'fontSize': '16px',
+                            'fontWeight': 'bold'
+                        }
+                    ),
+                    dcc.Download(id='download-report-excel'),
+                ], style={'textAlign': 'center'}),
+
+                # Mensaje de estado
+                html.Div(id='report-status-message', style={
+                    'textAlign': 'center',
+                    'margin': '20px',
+                    'fontSize': '14px',
+                    'color': '#666'
+                }),
+            ], style={
+                'maxWidth': '800px',
+                'margin': '0 auto',
+                'padding': '20px',
+                'backgroundColor': '#f9f9f9',
+                'borderRadius': '8px'
+            }),
         ]),
     ])
 
