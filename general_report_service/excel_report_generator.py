@@ -73,13 +73,19 @@ def generate_excel_report(ciudad, fecha_inicio, fecha_fin, umbral_am, umbral_fm,
         df9, df10, df17, umbral_fm, umbral_tv, umbral_am, ciudad_normalized, fecha_inicio, fecha_fin
     )
 
+    # Generate authorization tables
+    df_auth_fm, df_auth_tv, df_auth_am = generate_authorization_tables(
+        df9, df10, df17, ciudad_normalized
+    )
+
     # Create Excel file in memory
     output = BytesIO()
     excel_file = create_excel_file(
         output, df_final5, df_final6, df_final9, contar1, contar2, contar3,
         image1, image2, image3, df_original1, df_original2, df_original3,
         df9, df10, df17, ciudad_normalized, fecha_inicio, fecha_fin,
-        umbral_am, umbral_fm, umbral_tv
+        umbral_am, umbral_fm, umbral_tv,
+        df_auth_fm, df_auth_tv, df_auth_am
     )
 
     output.seek(0)
@@ -540,7 +546,8 @@ def generate_occupation_plot(df, occupation_counts, ciudad, umbral, fecha_init, 
 
 def create_excel_file(output, df_final5, df_final6, df_final9, contar1, contar2, contar3,
                       image1, image2, image3, df_original1, df_original2, df_original3,
-                      df9, df10, df17, ciudad, fecha_inicio, fecha_fin, umbral_am, umbral_fm, umbral_tv):
+                      df9, df10, df17, ciudad, fecha_inicio, fecha_fin, umbral_am, umbral_fm, umbral_tv, df_auth_fm,
+                      df_auth_tv, df_auth_am):
     """Create Excel file with all sheets and formatting"""
 
     Year1 = fecha_inicio.year
@@ -630,6 +637,14 @@ def create_excel_file(output, df_final5, df_final6, df_final9, contar1, contar2,
             worksheet_oc_am.write('A1', 'Umbral (dBµV/m)', format_umbral_title)
             worksheet_oc_am.write('B1', float(umbral_am), format_umbral_value)
 
+        # Write authorization sheets
+        if not df_auth_fm.empty:
+            df_auth_fm.to_excel(writer, sheet_name='Autorizaciones FM', index=False)
+        if not df_auth_tv.empty:
+            df_auth_tv.to_excel(writer, sheet_name='Autorizaciones TV', index=False)
+        if not df_auth_am.empty and ciudad in ['Quito', 'Guayaquil', 'Cuenca']:
+            df_auth_am.to_excel(writer, sheet_name='Autorizaciones AM', index=False)
+
         # Write measurements sheets if single month
         if is_single_month:
             if not df_original1.empty:
@@ -653,12 +668,14 @@ def create_excel_file(output, df_final5, df_final6, df_final9, contar1, contar2,
             worksheet_oc_am.insert_image('E1', 'image3.png', {'image_data': image3})
 
         # Apply conditional formatting
-        apply_conditional_formatting(writer, df_final5, df_final6, df_final9, df9, df10, df17, ciudad)
+        apply_conditional_formatting(writer, df_final5, df_final6, df_final9, df9, df10, df17, ciudad, df_auth_fm,
+                                     df_auth_tv, df_auth_am)
 
     return output
 
 
-def apply_conditional_formatting(writer, df_final5, df_final6, df_final9, df9, df10, df17, ciudad):
+def apply_conditional_formatting(writer, df_final5, df_final6, df_final9, df9, df10, df17, ciudad, df_auth_fm,
+                                 df_auth_tv, df_auth_am):
     """
     Apply conditional formatting to Excel sheets based on utils.py color scheme
 
@@ -844,6 +861,12 @@ def apply_conditional_formatting(writer, df_final5, df_final6, df_final9, df9, d
                 estacion = row.get('Estación', None)
                 bw_asignado = row.get('BW Asignado', 220)
 
+                # Convertir BW Asignado de kHz a Hz para comparación
+                # Si BW Asignado es 220 (kHz), el límite es 220000 Hz
+                # Si BW Asignado es 200 (kHz), el límite es 200000 Hz
+                # Si BW Asignado es 180 (kHz), el límite es 180000 Hz
+                bw_limite_hz = bw_asignado * 1000
+
                 key = f"{freq}_{estacion}"
                 station_auths = station_info.get(key, {}).get('authorizations', [])
 
@@ -873,7 +896,9 @@ def apply_conditional_formatting(writer, df_final5, df_final6, df_final9, df9, d
                         elif cell_value == 0:
                             worksheet_fm.write(row_num, col_num, '', format_purple)
                         elif isinstance(cell_value, (int, float)):
-                            if abs(cell_value - bw_asignado) <= (bw_asignado * 0.05):
+                            # Verde: si el valor medido es igual o inferior al límite
+                            # Rojo: si el valor medido supera el límite
+                            if cell_value <= bw_limite_hz:
                                 worksheet_fm.write(row_num, col_num, cell_value, format_green)
                             else:
                                 worksheet_fm.write(row_num, col_num, cell_value, format_red)
@@ -1211,3 +1236,158 @@ def apply_conditional_formatting(writer, df_final5, df_final6, df_final9, df9, d
         worksheet_am.write(legend_row + 12, 1,
                            'Nota 3.- De acuerdo a los numerales 4.1.a.5 y 4.1.a.6 de los LINEAMIENTOS PARA EL CONTROL Y MONITOREO DE PARÁMETROS TÉCNICOS RTV CON EL SACER (CCDE-01, PACT-2025), para cada observación detectada que contenga datos inconsistentes que no se encuentren dentro del rango autorizado, dependiendo del caso y de los resultados, corresponde programar una verificación en sitio. Dicha programación puede estar sujeta a los resultados de las mediciones del siguiente mes.',
                            format_legend_text)
+
+    # ============================================
+    # FORMAT AUTHORIZATION SHEETS
+    # ============================================
+
+    header_format = workbook.add_format({
+        'bold': True,
+        'bg_color': '#4F81BD',
+        'font_color': '#FFFFFF',
+        'border': 1,
+        'align': 'center',
+        'valign': 'vcenter'
+    })
+
+    if not df_auth_fm.empty and 'Autorizaciones FM' in writer.sheets:
+        worksheet_auth_fm = writer.sheets['Autorizaciones FM']
+        for col_num, value in enumerate(df_auth_fm.columns.values):
+            worksheet_auth_fm.write(0, col_num, value, header_format)
+
+        # Ajustar anchos de columna dinámicamente
+        worksheet_auth_fm.set_column('A:A', 15)  # Frecuencia (Hz)
+        worksheet_auth_fm.set_column('B:B', 30)  # Estación
+        worksheet_auth_fm.set_column('C:C', 20)  # Tipo Autorización
+        worksheet_auth_fm.set_column('D:E', 12)  # Fechas inicio/fin
+        worksheet_auth_fm.set_column('F:Z', 12)  # Otras columnas (ancho estándar)
+        worksheet_auth_fm.autofilter(0, 0, len(df_auth_fm), len(df_auth_fm.columns) - 1)
+
+    if not df_auth_tv.empty and 'Autorizaciones TV' in writer.sheets:
+        worksheet_auth_tv = writer.sheets['Autorizaciones TV']
+        for col_num, value in enumerate(df_auth_tv.columns.values):
+            worksheet_auth_tv.write(0, col_num, value, header_format)
+
+        worksheet_auth_tv.set_column('A:A', 15)  # Frecuencia (Hz)
+        worksheet_auth_tv.set_column('B:B', 30)  # Estación
+        worksheet_auth_tv.set_column('C:C', 15)  # Canal (Número)
+        worksheet_auth_tv.set_column('D:D', 18)  # Analógico/Digital
+        worksheet_auth_tv.set_column('E:E', 20)  # Tipo Autorización
+        worksheet_auth_tv.set_column('F:G', 12)  # Fechas
+        worksheet_auth_tv.set_column('H:Z', 12)  # Otras columnas
+        worksheet_auth_tv.autofilter(0, 0, len(df_auth_tv), len(df_auth_tv.columns) - 1)
+
+    if not df_auth_am.empty and ciudad in ['Quito', 'Guayaquil', 'Cuenca'] and 'Autorizaciones AM' in writer.sheets:
+        worksheet_auth_am = writer.sheets['Autorizaciones AM']
+        for col_num, value in enumerate(df_auth_am.columns.values):
+            worksheet_auth_am.write(0, col_num, value, header_format)
+
+        worksheet_auth_am.set_column('A:A', 15)  # Frecuencia (Hz)
+        worksheet_auth_am.set_column('B:B', 30)  # Estación
+        worksheet_auth_am.set_column('C:C', 20)  # Tipo Autorización
+        worksheet_auth_am.set_column('D:E', 12)  # Fechas
+        worksheet_auth_am.set_column('F:Z', 12)  # Otras columnas
+        worksheet_auth_am.autofilter(0, 0, len(df_auth_am), len(df_auth_am.columns) - 1)
+
+
+def generate_authorization_tables(df9, df10, df17, ciudad):
+    """Generate authorization tables for FM, TV, and AM"""
+
+    # FM Authorizations
+    df_auth_fm = pd.DataFrame()
+    if not df9.empty:
+        # Filtrar solo las filas que tienen autorizaciones
+        df_auth_fm = df9[df9['Tipo'].isin(['S', 'BP'])].copy()
+
+        if not df_auth_fm.empty:
+            # Convertir fechas a formato legible
+            df_auth_fm['Fecha_inicio'] = pd.to_datetime(df_auth_fm['Fecha_inicio']).dt.strftime('%Y-%m-%d')
+            df_auth_fm['Fecha_fin'] = pd.to_datetime(df_auth_fm['Fecha_fin']).dt.strftime('%Y-%m-%d')
+
+            # Renombrar columna Tipo con descripción completa
+            df_auth_fm['Tipo Autorización'] = df_auth_fm['Tipo'].map({
+                'S': 'Suspensión',
+                'BP': 'Baja Potencia'
+            })
+
+            # Definir columnas a mantener (excluyendo las innecesarias)
+            cols_to_keep = ['Frecuencia (Hz)', 'Estación', 'Tipo Autorización', 'Fecha_inicio', 'Fecha_fin']
+
+            # Agregar otras columnas que existan y no sean las que queremos eliminar
+            cols_to_exclude = ['Tiempo', 'Level (dBµV/m)', 'Bandwidth (Hz)', 'Potencia', 'BW Asignado', 'Tipo', 'id',
+                               'city']
+            other_cols = [col for col in df_auth_fm.columns if col not in cols_to_keep + cols_to_exclude]
+
+            # Seleccionar columnas finales
+            final_cols = cols_to_keep + other_cols
+            df_auth_fm = df_auth_fm[final_cols]
+
+            # Eliminar duplicados basándose en todas las columnas seleccionadas
+            # Esto asegura que solo se muestre un registro por autorización única
+            df_auth_fm = df_auth_fm.drop_duplicates().sort_values(
+                by=['Frecuencia (Hz)', 'Estación', 'Fecha_inicio']).reset_index(drop=True)
+
+    # TV Authorizations
+    df_auth_tv = pd.DataFrame()
+    if not df10.empty:
+        df_auth_tv = df10[df10['Tipo'].isin(['S', 'BP'])].copy()
+
+        if not df_auth_tv.empty:
+            # Convertir fechas a formato legible
+            df_auth_tv['Fecha_inicio'] = pd.to_datetime(df_auth_tv['Fecha_inicio']).dt.strftime('%Y-%m-%d')
+            df_auth_tv['Fecha_fin'] = pd.to_datetime(df_auth_tv['Fecha_fin']).dt.strftime('%Y-%m-%d')
+
+            # Renombrar columna Tipo con descripción completa
+            df_auth_tv['Tipo Autorización'] = df_auth_tv['Tipo'].map({
+                'S': 'Suspensión',
+                'BP': 'Baja Potencia'
+            })
+
+            # Definir columnas a mantener
+            cols_to_keep = ['Frecuencia (Hz)', 'Estación', 'Canal (Número)', 'Analógico/Digital',
+                            'Tipo Autorización', 'Fecha_inicio', 'Fecha_fin']
+
+            # Columnas a excluir
+            cols_to_exclude = ['Tiempo', 'Level (dBµV/m)', 'Tipo', 'id', 'city', 'bandwidth_hz']
+            other_cols = [col for col in df_auth_tv.columns if col not in cols_to_keep + cols_to_exclude]
+
+            # Seleccionar columnas finales
+            final_cols = cols_to_keep + other_cols
+            df_auth_tv = df_auth_tv[final_cols]
+
+            # Eliminar duplicados
+            df_auth_tv = df_auth_tv.drop_duplicates().sort_values(
+                by=['Frecuencia (Hz)', 'Estación', 'Fecha_inicio']).reset_index(drop=True)
+
+    # AM Authorizations
+    df_auth_am = pd.DataFrame()
+    if not df17.empty and ciudad in ['Quito', 'Guayaquil', 'Cuenca']:
+        df_auth_am = df17[df17['Tipo'].isin(['S', 'BP'])].copy()
+
+        if not df_auth_am.empty:
+            # Convertir fechas a formato legible
+            df_auth_am['Fecha_inicio'] = pd.to_datetime(df_auth_am['Fecha_inicio']).dt.strftime('%Y-%m-%d')
+            df_auth_am['Fecha_fin'] = pd.to_datetime(df_auth_am['Fecha_fin']).dt.strftime('%Y-%m-%d')
+
+            # Renombrar columna Tipo con descripción completa
+            df_auth_am['Tipo Autorización'] = df_auth_am['Tipo'].map({
+                'S': 'Suspensión',
+                'BP': 'Baja Potencia'
+            })
+
+            # Definir columnas a mantener
+            cols_to_keep = ['Frecuencia (Hz)', 'Estación', 'Tipo Autorización', 'Fecha_inicio', 'Fecha_fin']
+
+            # Columnas a excluir
+            cols_to_exclude = ['Tiempo', 'Level (dBµV/m)', 'Bandwidth (Hz)', 'Tipo', 'id', 'city']
+            other_cols = [col for col in df_auth_am.columns if col not in cols_to_keep + cols_to_exclude]
+
+            # Seleccionar columnas finales
+            final_cols = cols_to_keep + other_cols
+            df_auth_am = df_auth_am[final_cols]
+
+            # Eliminar duplicados
+            df_auth_am = df_auth_am.drop_duplicates().sort_values(
+                by=['Frecuencia (Hz)', 'Estación', 'Fecha_inicio']).reset_index(drop=True)
+
+    return df_auth_fm, df_auth_tv, df_auth_am
