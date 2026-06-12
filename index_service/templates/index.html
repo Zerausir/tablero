@@ -1,54 +1,173 @@
 {% load static %}
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Panel de Opciones</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, shrink-to-fit=no">
+    <title>Panel de opciones — Tablero SACER</title>
     <link rel="stylesheet" href="{% static 'css/outer.css' %}">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.10.0/dist/tabler-icons.min.css">
 </head>
 <body>
-    {% if user.is_authenticated %}
-        <h1>Panel de Opciones</h1>
-        <ul>
-            {% for option in options %}
-                {% if option == 'GPR' and perms.your_app.view_gpr %}
-                    <li><a href="/{{ option|slugify }}/">{{ option }}</a></li>
-                {% elif option == 'SACER RTV' and perms.your_app.view_sacer_rtv %}
-                    <li><a href="/{{ option|slugify }}/">{{ option }}</a></li>
-                {% elif option == 'SACER OCUPACIÓN DE BANDAS' and perms.your_app.view_sacer_ocupacion %}
-                    <li><a href="/{{ option|slugify }}/">{{ option }}</a></li>
-                {% endif %}
-            {% endfor %}
-        </ul>
-        <form method="post" action="{% url 'logout' %}">
-            {% csrf_token %}
-            <button type="submit">Cerrar sesión</button>
-        </form>
-    {% else %}
-        <p>Por favor, <a href="{% url 'login' %}">inicia sesión</a> para acceder al Panel de Opciones.</p>
-    {% endif %}
 
-    <script>
+{% if user.is_authenticated %}
+
+<div class="page-shell">
+
+    <!-- Topbar -->
+    <header class="topbar" role="banner">
+        <div class="topbar-brand">
+            <div class="topbar-brand-mark" aria-hidden="true">
+                <i class="ti ti-radio"></i>
+            </div>
+            <div>
+                <div class="topbar-brand-name">Tablero SACER</div>
+                <div class="topbar-brand-sub">ARCOTEL &middot; Ecuador</div>
+            </div>
+        </div>
+
+        <div class="topbar-sep" aria-hidden="true"></div>
+        <span class="topbar-section">Panel principal</span>
+
+        <div class="topbar-spacer"></div>
+
+        <nav class="topbar-user" aria-label="Opciones de usuario">
+            <div class="topbar-avatar" aria-hidden="true">
+                {{ user.first_name|first|upper }}{{ user.last_name|first|upper }}
+            </div>
+            <span class="topbar-username">{{ user.get_full_name|default:user.username }}</span>
+            <form method="post" action="{% url 'logout' %}" style="margin: 0;">
+                {% csrf_token %}
+                <button type="submit" class="topbar-logout-btn">
+                    <i class="ti ti-logout" aria-hidden="true" style="font-size: 15px;"></i>
+                    Cerrar sesión
+                </button>
+            </form>
+        </nav>
+    </header>
+
+    <!-- Contenido principal -->
+    <main class="page-content">
+
+        <div class="panel-greeting">
+            <h1 class="panel-greeting-title">
+                Bienvenido{% if user.first_name %}, {{ user.first_name }}{% endif %}
+            </h1>
+            <p class="panel-greeting-sub">Selecciona un módulo para comenzar el análisis</p>
+        </div>
+
+        <div class="panel-access-pill" role="status">
+            <i class="ti ti-shield-check" aria-hidden="true" style="font-size: 14px;"></i>
+            Acceso verificado &middot; Sesión activa
+        </div>
+
+        <!-- Módulos -->
+        <div class="section-label">Módulos disponibles</div>
+
+        <div class="modules-grid" role="list">
+
+            {% for option in options %}
+
+            {% if option == 'SACER RTV' %}
+            <a href="/sacer-rtv/" class="mod-card" role="listitem" aria-label="Abrir módulo SACER RTV">
+                <div class="mod-card-icon teal" aria-hidden="true">
+                    <i class="ti ti-antenna"></i>
+                </div>
+                <span class="mod-card-tag teal">RTV</span>
+                <div class="mod-card-name">SACER RTV</div>
+                <p class="mod-card-desc">
+                    Visualización de niveles de campo eléctrico para emisoras FM, TV y AM.
+                    Mapas de calor interactivos, gestión de autorizaciones y exportación a Excel.
+                </p>
+                <div class="mod-card-arrow" aria-hidden="true">
+                    Abrir módulo
+                    <i class="ti ti-arrow-right" style="font-size: 14px;"></i>
+                </div>
+            </a>
+
+            {% elif option == 'SACER OCUPACIÓN DE BANDAS' %}
+            <a href="/sacer-ocupacion-de-bandas/" class="mod-card" role="listitem"
+               aria-label="Abrir módulo SACER Ocupación de Bandas">
+                <div class="mod-card-icon blue" aria-hidden="true">
+                    <i class="ti ti-wave-square"></i>
+                </div>
+                <span class="mod-card-tag blue">Bandas</span>
+                <div class="mod-card-name">SACER Ocupación de Bandas</div>
+                <p class="mod-card-desc">
+                    Análisis de ocupación espectral con umbrales configurables,
+                    intermodulación y visualización temporal por frecuencia.
+                </p>
+                <div class="mod-card-arrow" aria-hidden="true">
+                    Abrir módulo
+                    <i class="ti ti-arrow-right" style="font-size: 14px;"></i>
+                </div>
+            </a>
+
+            {% elif option == 'GPR' %}
+            <a href="/gpr/" class="mod-card" role="listitem" aria-label="Abrir módulo GPR">
+                <div class="mod-card-icon amber" aria-hidden="true">
+                    <i class="ti ti-report-analytics"></i>
+                </div>
+                <span class="mod-card-tag amber">GPR</span>
+                <div class="mod-card-name">GPR</div>
+                <p class="mod-card-desc">
+                    Seguimiento de indicadores PACT. Comparación de metas planificadas
+                    vs. cumplidas, gráficos de progreso y generación de Anexo 3.1.
+                </p>
+                <div class="mod-card-arrow" aria-hidden="true">
+                    Abrir módulo
+                    <i class="ti ti-arrow-right" style="font-size: 14px;"></i>
+                </div>
+            </a>
+
+            {% endif %}
+            {% endfor %}
+
+        </div>
+
+        <!-- Estadísticas de contexto -->
+        <div class="section-label">Información del sistema</div>
+        <div class="stats-row" role="list">
+            <div class="stat-card" role="listitem">
+                <div class="stat-label">Módulos activos</div>
+                <div class="stat-val">{{ options|length }}</div>
+                <div class="stat-sub">Disponibles para tu perfil</div>
+            </div>
+            <div class="stat-card" role="listitem">
+                <div class="stat-label">Tiempo de sesión</div>
+                <div class="stat-val">30 min</div>
+                <div class="stat-sub">Cierre automático por inactividad</div>
+            </div>
+            <div class="stat-card" role="listitem">
+                <div class="stat-label">Cobertura nacional</div>
+                <div class="stat-val">12</div>
+                <div class="stat-sub">Ciudades monitoreadas</div>
+            </div>
+        </div>
+
+    </main>
+</div>
+
+{% else %}
+<div style="display:flex; align-items:center; justify-content:center; min-height:100vh;">
+    <p>Por favor, <a href="{% url 'login' %}">inicia sesión</a> para acceder al sistema.</p>
+</div>
+{% endif %}
+
+<script>
     function checkSession() {
-        fetch('/check_session/', {
-            method: 'GET',
-            credentials: 'same-origin'
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (!data.is_authenticated) {
-                window.location.href = '{% url "login" %}';
-            }
-        });
+        fetch('/check_session/', {method: 'GET', credentials: 'same-origin'})
+            .then(r => r.json())
+            .then(data => {
+                if (!data.is_authenticated) window.location.href = '{% url "login" %}';
+            });
     }
 
     setInterval(checkSession, 300000);
-
-    document.addEventListener("visibilitychange", function() {
-        if (!document.hidden) {
-            checkSession();
-        }
+    document.addEventListener('visibilitychange', function () {
+        if (!document.hidden) checkSession();
     });
-    </script>
+</script>
+
 </body>
 </html>

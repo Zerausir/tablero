@@ -1,39 +1,691 @@
-/* outer.css */
-body {
+/* =============================================================
+   outer.css — Tablero SACER · ARCOTEL
+   Scope: Django-rendered templates (login, index, module shells)
+   ============================================================= */
+
+/* ── Reset & base ─────────────────────────────────────────── */
+*, *::before, *::after {
+    box-sizing: border-box;
     margin: 0;
     padding: 0;
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    background-color: #f4f4f4;
-    color: #333;
+}
+
+:root {
+    --brand-primary: #0B3D91;
+    --brand-dark: #082d6b;
+    --brand-light: #E6F1FB;
+    --brand-teal: #0F6E56;
+    --brand-teal-bg: #E1F5EE;
+    --brand-amber: #854F0B;
+    --brand-amber-bg: #FAEEDA;
+
+    --surface: #ffffff;
+    --surface-2: #f7f8fa;
+    --surface-3: #f0f2f5;
+    --border: rgba(0, 0, 0, 0.10);
+    --border-med: rgba(0, 0, 0, 0.18);
+
+    --text-primary: #111827;
+    --text-secondary: #4b5563;
+    --text-muted: #9ca3af;
+
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 14px;
+
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, .08), 0 1px 2px rgba(0, 0, 0, .06);
+    --shadow-md: 0 4px 12px rgba(0, 0, 0, .10);
+}
+
+html, body {
+    height: 100%;
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    font-size: 15px;
+    line-height: 1.6;
+    color: var(--text-primary);
+    background-color: var(--surface-3);
     overflow-x: hidden;
 }
 
-.dashboard-container {
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    margin: auto;
-    padding: 20px;
-}
-
-h1 {
-    color: #2c3e50;
-    margin-bottom: 20px;
-}
-
-/* Styles for iframes */
-iframe {
-    width: 100%;
-    aspect-ratio: 16 / 9;
-    border: none; /* Remove iframe border */
-}
-
-/* You may also want to style links, buttons, and other elements here */
-a, button {
-    color: #3498db;
+a {
+    color: var(--brand-primary);
     text-decoration: none;
 }
 
-/* Rest of your styles... */
+a:hover {
+    text-decoration: underline;
+}
+
+/* ── Topbar (shared across all module pages) ──────────────── */
+.topbar {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    height: 56px;
+    background: var(--brand-primary);
+    display: flex;
+    align-items: center;
+    padding: 0 24px;
+    gap: 14px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, .18);
+}
+
+.topbar-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+}
+
+.topbar-brand-mark {
+    width: 34px;
+    height: 34px;
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    color: #fff;
+}
+
+.topbar-brand-name {
+    font-size: 15px;
+    font-weight: 600;
+    color: #fff;
+    letter-spacing: -0.01em;
+}
+
+.topbar-brand-sub {
+    font-size: 11px;
+    color: rgba(255, 255, 255, .5);
+    text-transform: uppercase;
+    letter-spacing: .07em;
+    margin-top: -2px;
+}
+
+.topbar-sep {
+    width: 1px;
+    height: 22px;
+    background: rgba(255, 255, 255, .2);
+}
+
+.topbar-section {
+    font-size: 12px;
+    color: rgba(255, 255, 255, .55);
+    text-transform: uppercase;
+    letter-spacing: .07em;
+}
+
+.topbar-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: rgba(255, 255, 255, .8);
+    background: rgba(255, 255, 255, .1);
+    border: 1px solid rgba(255, 255, 255, .2);
+    border-radius: var(--radius-sm);
+    padding: 5px 12px;
+    cursor: pointer;
+    transition: background .15s;
+    text-decoration: none;
+}
+
+.topbar-back:hover {
+    background: rgba(255, 255, 255, .18);
+    text-decoration: none;
+    color: #fff;
+}
+
+.topbar-spacer {
+    flex: 1;
+}
+
+.topbar-user {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.topbar-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, .2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 600;
+    color: #fff;
+    flex-shrink: 0;
+}
+
+.topbar-username {
+    font-size: 13px;
+    color: rgba(255, 255, 255, .8);
+}
+
+.topbar-logout-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: rgba(255, 255, 255, .7);
+    background: none;
+    border: 1px solid rgba(255, 255, 255, .25);
+    border-radius: var(--radius-sm);
+    padding: 5px 12px;
+    cursor: pointer;
+    transition: background .15s, color .15s;
+    font-family: inherit;
+}
+
+.topbar-logout-btn:hover {
+    background: rgba(255, 255, 255, .12);
+    color: #fff;
+}
+
+/* ── Page shell (wraps topbar + content) ──────────────────── */
+.page-shell {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.page-content {
+    flex: 1;
+    padding: 32px 28px;
+    max-width: 1400px;
+    width: 100%;
+    margin: 0 auto;
+}
+
+/* ── Module shell (topbar + dash content full height) ─────── */
+.module-shell {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.module-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    /* Allow content to grow naturally — do NOT set min-height:0 here
+       because that collapses the flex child when Dash wraps its output
+       in a non-flex intermediate div */
+    min-height: calc(100vh - 110px);
+}
+
+/* ── Login page ───────────────────────────────────────────── */
+.login-layout {
+    min-height: 100vh;
+    display: flex;
+}
+
+.login-sidebar {
+    width: 380px;
+    flex-shrink: 0;
+    background: var(--brand-primary);
+    display: flex;
+    flex-direction: column;
+    padding: 52px 40px;
+}
+
+.login-sidebar-logo {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 44px;
+}
+
+.login-logo-mark {
+    width: 48px;
+    height: 48px;
+    background: rgba(255, 255, 255, .15);
+    border-radius: var(--radius-md);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 26px;
+    color: #fff;
+    flex-shrink: 0;
+}
+
+.login-logo-text-name {
+    font-size: 18px;
+    font-weight: 700;
+    color: #fff;
+    letter-spacing: -.01em;
+}
+
+.login-logo-text-sub {
+    font-size: 11px;
+    color: rgba(255, 255, 255, .5);
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    margin-top: 1px;
+}
+
+.login-sidebar-desc {
+    font-size: 14px;
+    color: rgba(255, 255, 255, .7);
+    line-height: 1.75;
+    margin-bottom: 36px;
+}
+
+.login-sidebar-divider {
+    height: 1px;
+    background: rgba(255, 255, 255, .12);
+    margin: 0 0 28px;
+}
+
+.login-feature {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 18px;
+}
+
+.login-feature-icon {
+    font-size: 18px;
+    color: rgba(255, 255, 255, .55);
+    margin-top: 1px;
+    flex-shrink: 0;
+}
+
+.login-feature-text {
+    font-size: 13px;
+    color: rgba(255, 255, 255, .65);
+    line-height: 1.55;
+}
+
+.login-sidebar-footer {
+    margin-top: auto;
+    font-size: 11px;
+    color: rgba(255, 255, 255, .3);
+    line-height: 1.65;
+}
+
+.login-main {
+    flex: 1;
+    background: var(--surface-3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 24px;
+}
+
+.login-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 40px;
+    width: 100%;
+    max-width: 420px;
+    box-shadow: var(--shadow-md);
+}
+
+.login-card-headline {
+    font-size: 22px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 6px;
+    letter-spacing: -.01em;
+}
+
+.login-card-sub {
+    font-size: 14px;
+    color: var(--text-secondary);
+    margin-bottom: 32px;
+}
+
+/* Django form field styling inside login */
+.login-card p {
+    margin-bottom: 18px;
+}
+
+.login-card label {
+    display: block;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    margin-bottom: 6px;
+}
+
+.login-card input[type="text"],
+.login-card input[type="password"],
+.login-card input[type="email"] {
+    width: 100%;
+    height: 42px;
+    border: 1px solid var(--border-med);
+    border-radius: var(--radius-sm);
+    padding: 0 14px;
+    font-size: 14px;
+    font-family: inherit;
+    color: var(--text-primary);
+    background: var(--surface-2);
+    transition: border-color .15s, box-shadow .15s;
+    outline: none;
+}
+
+.login-card input[type="text"]:focus,
+.login-card input[type="password"]:focus {
+    border-color: var(--brand-primary);
+    box-shadow: 0 0 0 3px rgba(11, 61, 145, .1);
+    background: var(--surface);
+}
+
+.login-submit-btn,
+.login-card input[type="submit"],
+.login-card button[type="submit"] {
+    width: 100%;
+    height: 44px;
+    background: var(--brand-primary);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-size: 14px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background .15s;
+    margin-top: 8px;
+}
+
+.login-submit-btn:hover,
+.login-card input[type="submit"]:hover,
+.login-card button[type="submit"]:hover {
+    background: var(--brand-dark);
+}
+
+.login-error-list {
+    list-style: none;
+    margin-bottom: 18px;
+}
+
+.login-error-list li {
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    border-radius: var(--radius-sm);
+    color: #b91c1c;
+    font-size: 13px;
+    padding: 10px 14px;
+    margin-bottom: 8px;
+}
+
+.login-security-strip {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 10px 14px;
+    margin-top: 20px;
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.login-security-icon {
+    font-size: 15px;
+    color: #15803d;
+    flex-shrink: 0;
+}
+
+.login-access-note {
+    font-size: 11px;
+    color: var(--text-muted);
+    text-align: center;
+    margin-top: 14px;
+    line-height: 1.55;
+}
+
+/* ── Panel de Opciones ────────────────────────────────────── */
+.panel-greeting {
+    margin-bottom: 8px;
+}
+
+.panel-greeting-title {
+    font-size: 24px;
+    font-weight: 600;
+    color: var(--text-primary);
+    letter-spacing: -.02em;
+    margin-bottom: 4px;
+}
+
+.panel-greeting-sub {
+    font-size: 14px;
+    color: var(--text-secondary);
+}
+
+.panel-access-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    border-radius: 20px;
+    padding: 5px 14px;
+    font-size: 12px;
+    color: #15803d;
+    margin: 16px 0 24px;
+}
+
+.section-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    margin-bottom: 14px;
+}
+
+/* Module cards grid */
+.modules-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 18px;
+    margin-bottom: 36px;
+}
+
+.mod-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    text-decoration: none;
+    color: inherit;
+    transition: border-color .15s, box-shadow .15s, transform .15s;
+    cursor: pointer;
+}
+
+.mod-card:hover {
+    border-color: var(--brand-primary);
+    box-shadow: 0 4px 16px rgba(11, 61, 145, .1);
+    transform: translateY(-2px);
+    text-decoration: none;
+    color: inherit;
+}
+
+.mod-card-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: var(--radius-md);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    margin-bottom: 16px;
+    flex-shrink: 0;
+}
+
+.mod-card-icon.teal {
+    background: var(--brand-teal-bg);
+    color: var(--brand-teal);
+}
+
+.mod-card-icon.blue {
+    background: var(--brand-light);
+    color: var(--brand-primary);
+}
+
+.mod-card-icon.amber {
+    background: var(--brand-amber-bg);
+    color: var(--brand-amber);
+}
+
+.mod-card-tag {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    padding: 2px 8px;
+    border-radius: 4px;
+    margin-bottom: 8px;
+}
+
+.mod-card-tag.teal {
+    background: var(--brand-teal-bg);
+    color: var(--brand-teal);
+}
+
+.mod-card-tag.blue {
+    background: var(--brand-light);
+    color: var(--brand-primary);
+}
+
+.mod-card-tag.amber {
+    background: var(--brand-amber-bg);
+    color: var(--brand-amber);
+}
+
+.mod-card-name {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 8px;
+    line-height: 1.3;
+}
+
+.mod-card-desc {
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+    flex: 1;
+}
+
+.mod-card-arrow {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--brand-primary);
+    margin-top: 18px;
+}
+
+/* Stats strip */
+.stats-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 14px;
+}
+
+.stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 16px 18px;
+}
+
+.stat-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    margin-bottom: 6px;
+}
+
+.stat-val {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--text-primary);
+    letter-spacing: -.01em;
+}
+
+.stat-sub {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+
+/* Module page header strip (inside module pages above Dash embed) */
+.module-header-strip {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 24px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.module-header-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: var(--radius-md);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    flex-shrink: 0;
+}
+
+.module-header-title {
+    font-size: 17px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.module-header-sub {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-top: 1px;
+}
+
+/* Dash embed area */
+.dash-embed {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: calc(100vh - 110px);
+}
+
+/* Force height propagation through ALL intermediate divs
+   that plotly_app_bootstrap inserts between .dash-embed and the Dash layout */
+.dash-embed > div,
+.dash-embed > div > div,
+.dash-embed > div > div > div {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: calc(100vh - 110px);
+    width: 100%;
+    border: none;
+}
+
+/* ── Utility ──────────────────────────────────────────────── */
+.visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+}

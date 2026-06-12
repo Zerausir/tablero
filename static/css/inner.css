@@ -1,136 +1,522 @@
-/* inner.css */
-body {
+/* =============================================================
+   inner.css — Tablero SACER · ARCOTEL
+   Scope: Dash component styles served via external_stylesheets
+   ============================================================= */
+
+/* ── Base (Dash iframe resets) ────────────────────────────── */
+*, *::before, *::after {
+    box-sizing: border-box;
     margin: 0;
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    background-color: #f4f4f4;
-    color: #333;
+    padding: 0;
 }
 
-/* Preserving the aspect ratio for Dash graphs */
-.dash-graph {
-    aspect-ratio: 16 / 9;
+body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
+    color: #111827;
+    background: #f0f2f5;
 }
 
-/* Style for the overall app layout */
-#general-report-app {
-    padding: 20px;
-    max-width: 1200px;
-    margin: auto;
+/* ── Root layout shell (wraps all Dash content) ──────────── */
+#dash-app-root,
+#dash-app-root > div {
+    min-height: 100vh;
 }
 
-/* Style for DatePickerRange */
-.DateInput, .DateRangePickerInput {
-    margin: 10px;
-    padding: 10px;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    background-color: #fff;
+/* Top-level app Div — two-column layout: sidebar + main ───── */
+.sacer-layout {
+    display: flex;
+    min-height: 100vh;
+    gap: 0;
+}
+
+/* ── Sidebar (filters panel) ─────────────────────────────── */
+.sacer-sidebar {
+    width: 270px;
+    flex-shrink: 0;
+    background: #ffffff;
+    border-right: 1px solid rgba(0, 0, 0, .10);
+    padding: 20px 18px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+
+.sidebar-section-label {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .09em;
+    color: #9ca3af;
+    margin-bottom: 10px;
+    margin-top: 18px;
+}
+
+.sidebar-section-label:first-child {
+    margin-top: 0;
+}
+
+/* ── Dash DatePickerRange ────────────────────────────────── */
+.DateRangePickerInput,
+.DateRangePickerInput__withBorder {
+    border: 1px solid rgba(0, 0, 0, .18) !important;
+    border-radius: 8px !important;
+    background: #f7f8fa !important;
+    width: 100% !important;
+    overflow: hidden;
+}
+
+.DateInput {
+    background: transparent !important;
+    width: calc(50% - 16px) !important;
 }
 
 .DateInput_input {
-    font-size: 1rem;
+    font-size: 13px !important;
+    font-family: 'Segoe UI', system-ui, sans-serif !important;
+    color: #111827 !important;
+    background: transparent !important;
+    padding: 8px 10px !important;
+    border-bottom: none !important;
 }
 
-/* Style for Dropdown */
-.Select-control, .Select-menu-outer {
-    margin: 10px;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    background-color: #fff;
+.DateInput_input__focused {
+    border-bottom: 2px solid #0B3D91 !important;
 }
 
-.Select-value, .Select-input {
-    padding: 10px;
+.DateRangePickerInput_arrow {
+    color: #9ca3af;
 }
 
-.Select-value-label, .Select-placeholder {
-    font-size: 1rem;
+/* Dash DatePickerSingle */
+.SingleDatePickerInput {
+    border: 1px solid rgba(0, 0, 0, .18) !important;
+    border-radius: 8px !important;
+    background: #f7f8fa !important;
+    width: 100% !important;
 }
 
-/* Style for Checklist */
-.Checkbox {
+.SingleDatePickerInput .DateInput {
+    width: 100% !important;
+}
+
+/* ── Dash Dropdown ────────────────────────────────────────── */
+.Select-control {
+    border: 1px solid rgba(0, 0, 0, .18) !important;
+    border-radius: 8px !important;
+    background: #f7f8fa !important;
+    min-height: 38px !important;
+    font-size: 13px !important;
+}
+
+.Select-control:hover {
+    border-color: rgba(0, 0, 0, .28) !important;
+}
+
+.is-focused .Select-control,
+.is-open .Select-control {
+    border-color: #0B3D91 !important;
+    box-shadow: 0 0 0 3px rgba(11, 61, 145, .1) !important;
+}
+
+.Select-value-label,
+.Select-placeholder {
+    font-size: 13px !important;
+    color: #374151 !important;
+    line-height: 36px !important;
+    padding: 0 10px !important;
+}
+
+.Select-placeholder {
+    color: #9ca3af !important;
+}
+
+.Select-menu-outer {
+    border: 1px solid rgba(0, 0, 0, .14) !important;
+    border-radius: 8px !important;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, .12) !important;
+    margin-top: 4px !important;
+    font-size: 13px !important;
+    overflow: hidden;
+}
+
+.Select-option {
+    padding: 9px 12px !important;
+    color: #374151 !important;
+}
+
+.Select-option.is-focused {
+    background: #E6F1FB !important;
+    color: #0B3D91 !important;
+}
+
+.Select-option.is-selected {
+    background: #0B3D91 !important;
+    color: #fff !important;
+}
+
+/* Multi-value tags */
+.Select-value {
+    background: #E6F1FB !important;
+    border: 1px solid #B5D4F4 !important;
+    border-radius: 4px !important;
+    color: #185FA5 !important;
+    font-size: 12px !important;
+    padding: 2px 6px !important;
+    margin: 3px 2px !important;
+}
+
+.Select-value-icon {
+    color: #185FA5 !important;
+    border-right: 1px solid #B5D4F4 !important;
+    padding: 2px 5px !important;
+}
+
+/* ── Dash Checklist ───────────────────────────────────────── */
+.dash-checklist {
     display: flex;
-    align-items: center;
-    margin: 10px;
-    padding: 10px;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    background-color: #fff;
+    flex-direction: column;
+    gap: 8px;
 }
 
-.Checkbox input {
-    margin-right: 10px;
+/* Each checklist item wrapper */
+.dash-checklist label {
+    display: flex !important;
+    align-items: center !important;
+    gap: 9px !important;
+    padding: 9px 12px !important;
+    background: #f7f8fa !important;
+    border: 1px solid rgba(0, 0, 0, .10) !important;
+    border-radius: 8px !important;
+    font-size: 13px !important;
+    color: #374151 !important;
+    cursor: pointer !important;
+    transition: border-color .12s, background .12s !important;
+    line-height: 1.4 !important;
 }
 
-/* Style for the Loading component */
-.dcc-loading {
-    color: #2c3e50;
+.dash-checklist label:hover {
+    border-color: #0B3D91 !important;
+    background: #EFF6FF !important;
 }
 
-/* Style for the DataTable */
-.dash-table {
-    border-collapse: collapse;
-    width: 100%;
-    margin: 10px 0;
-    background-color: #fff;
+.dash-checklist input[type="checkbox"] {
+    width: 15px !important;
+    height: 15px !important;
+    flex-shrink: 0 !important;
+    accent-color: #0B3D91 !important;
 }
 
-.dash-table th, .dash-table td {
-    border: 1px solid #ddd;
-    text-align: left;
-    padding: 8px;
+/* ── Buttons ──────────────────────────────────────────────── */
+button,
+.dash-button {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    cursor: pointer;
+    transition: background .15s, border-color .15s;
 }
 
-.dash-table tr:nth-child(even) {
-    background-color: #f2f2f2;
-}
-
-/* Style for Tabs */
-.tab {
-    border: none;
-    background-color: #f4f4f4;
-    color: #333;
-    padding: 10px;
-    margin: 10px;
-    border-radius: 4px;
-}
-
-.tab--selected {
-    border-bottom: 2px solid #333;
-}
-
-/* Style for Graphs */
-.dash-graph .plotly-graph-div {
-    box-shadow: 0 4px 8px 0 rgba(0,0,0,0.2);
-    transition: 0.3s;
-    border-radius: 5px;
-}
-
-.dash-graph .plotly-graph-div:hover {
-    box-shadow: 0 8px 16px 0 rgba(0,0,0,0.2);
-}
-
-.row {
-    display: flex;
-    flex-wrap: wrap;
-    margin-right: -15px;
-    margin-left: -15px;
-}
-
-.six.columns {
+/* Primary action button */
+.btn-primary-dash {
     display: flex;
     align-items: center;
     justify-content: center;
-    height: 400px;  /* Ajusta esta altura según sea necesario */
-    padding-right: 15px;
-    padding-left: 15px;
-    box-sizing: border-box;
+    gap: 7px;
+    width: 100%;
+    height: 40px;
+    background: #0B3D91;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
 }
 
-@media only screen and (max-width: 600px) {
-    .six.columns {
+.btn-primary-dash:hover {
+    background: #082d6b;
+}
+
+/* Secondary / ghost button */
+.btn-secondary-dash {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    width: 100%;
+    height: 38px;
+    background: transparent;
+    color: #0B3D91;
+    border: 1px solid #0B3D91;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 8px;
+}
+
+.btn-secondary-dash:hover {
+    background: #E6F1FB;
+}
+
+/* Excel export / download buttons */
+#download-excel-button,
+#generate-report-button,
+[id*="download"],
+[id*="export"] {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 7px !important;
+    padding: 10px 22px !important;
+    background: #0F6E56 !important;
+    color: #fff !important;
+    border: none !important;
+    border-radius: 8px !important;
+    font-size: 13px !important;
+    font-weight: 600 !important;
+    font-family: inherit !important;
+    cursor: pointer !important;
+    transition: background .15s !important;
+}
+
+#download-excel-button:hover,
+#generate-report-button:hover {
+    background: #085041 !important;
+}
+
+/* Toggle results button */
+#toggle-results-button {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 7px !important;
+    padding: 8px 18px !important;
+    background: transparent !important;
+    color: #0B3D91 !important;
+    border: 1px solid #0B3D91 !important;
+    border-radius: 8px !important;
+    font-size: 13px !important;
+    font-weight: 500 !important;
+    font-family: inherit !important;
+    cursor: pointer !important;
+    margin: 12px 0 !important;
+    transition: background .15s !important;
+}
+
+#toggle-results-button:hover {
+    background: #E6F1FB !important;
+}
+
+/* ── Dash Tabs ────────────────────────────────────────────── */
+.dash-tabs {
+    border-bottom: 1px solid rgba(0, 0, 0, .10) !important;
+    background: #fff !important;
+    padding: 0 4px !important;
+}
+
+.dash-tab {
+    padding: 11px 18px !important;
+    font-size: 13px !important;
+    font-weight: 500 !important;
+    color: #6b7280 !important;
+    border: none !important;
+    border-bottom: 2px solid transparent !important;
+    background: transparent !important;
+    border-radius: 0 !important;
+    cursor: pointer !important;
+    transition: color .12s, border-color .12s !important;
+    white-space: nowrap !important;
+}
+
+.dash-tab:hover {
+    color: #0B3D91 !important;
+}
+
+.dash-tab--selected {
+    color: #0B3D91 !important;
+    border-bottom-color: #0B3D91 !important;
+    font-weight: 600 !important;
+}
+
+/* Tab content area */
+.dash-tab-content {
+    padding: 18px !important;
+    background: #f0f2f5 !important;
+}
+
+/* ── Dash DataTable ───────────────────────────────────────── */
+.dash-table-container {
+    border-radius: 10px !important;
+    overflow: hidden !important;
+    border: 1px solid rgba(0, 0, 0, .10) !important;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, .06) !important;
+}
+
+.dash-spreadsheet-container {
+    border-radius: 0 !important;
+}
+
+.dash-header {
+    background: #f7f8fa !important;
+    font-size: 12px !important;
+    font-weight: 700 !important;
+    text-transform: uppercase !important;
+    letter-spacing: .05em !important;
+    color: #6b7280 !important;
+    border-bottom: 1px solid rgba(0, 0, 0, .10) !important;
+}
+
+.dash-cell {
+    font-size: 13px !important;
+    color: #374151 !important;
+    border-bottom: 1px solid rgba(0, 0, 0, .06) !important;
+    padding: 9px 12px !important;
+}
+
+.dash-cell:hover {
+    background: #f0f2f5 !important;
+}
+
+/* ── Loading spinner override ─────────────────────────────── */
+._dash-loading-callback {
+    position: relative !important;
+}
+
+.dash-loading {
+    opacity: .5 !important;
+}
+
+/* Loading spinner color */
+.dash-loading-callback-wrapper svg circle {
+    stroke: #0B3D91 !important;
+}
+
+/* ── Plotly graph cards ───────────────────────────────────── */
+.js-plotly-plot,
+.plot-container {
+    border-radius: 10px;
+    overflow: hidden;
+    background: #fff;
+}
+
+.dash-graph {
+    border: 1px solid rgba(0, 0, 0, .10);
+    border-radius: 10px;
+    background: #fff;
+    overflow: hidden;
+    margin-bottom: 16px;
+}
+
+/* ── Main content area ────────────────────────────────────── */
+.sacer-main {
+    flex: 1;
+    min-width: 0;
+    padding: 20px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+/* ── Info / warning banners ──────────────────────────────── */
+.dash-warning-banner {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    background: #fffbeb;
+    border: 1px solid #fcd34d;
+    border-radius: 8px;
+    padding: 12px 16px;
+    font-size: 13px;
+    color: #92400e;
+}
+
+.dash-error-banner {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    border-radius: 8px;
+    padding: 12px 16px;
+    font-size: 13px;
+    color: #b91c1c;
+}
+
+.dash-info-banner {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
+    border-radius: 8px;
+    padding: 12px 16px;
+    font-size: 13px;
+    color: #1e40af;
+}
+
+/* ── Report section (tab-5) ───────────────────────────────── */
+.report-section {
+    max-width: 720px;
+    margin: 0 auto;
+    background: #fff;
+    border: 1px solid rgba(0, 0, 0, .10);
+    border-radius: 12px;
+    padding: 28px 32px;
+}
+
+.report-section h3 {
+    font-size: 18px;
+    font-weight: 600;
+    color: #111827;
+    margin-bottom: 6px;
+}
+
+.report-section-label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    color: #9ca3af;
+    margin: 20px 0 10px;
+}
+
+/* Report form row */
+.report-field-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.report-field-row label {
+    font-size: 13px;
+    font-weight: 500;
+    color: #374151;
+    flex-shrink: 0;
+}
+
+/* Status message styling */
+#report-status-message {
+    font-size: 13px;
+    color: #374151;
+    text-align: center;
+    padding: 10px;
+}
+
+/* ── Responsive ──────────────────────────────────────────── */
+@media (max-width: 768px) {
+    .sacer-layout {
+        flex-direction: column;
+    }
+
+    .sacer-sidebar {
         width: 100%;
+        border-right: none;
+        border-bottom: 1px solid rgba(0, 0, 0, .10);
+    }
+
+    .sacer-main {
+        padding: 14px;
     }
 }
-
-/* Additional custom styles can be added below */

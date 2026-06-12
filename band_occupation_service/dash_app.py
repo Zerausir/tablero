@@ -20,54 +20,140 @@ app = DjangoDash(
     external_stylesheets=["/static/css/inner.css"]
 )
 
+# ── Estilos de sidebar ────────────────────────────────────────────────────────
+_SIDEBAR_LABEL = {
+    'fontSize': '10px',
+    'fontWeight': '700',
+    'textTransform': 'uppercase',
+    'letterSpacing': '0.09em',
+    'color': '#9ca3af',
+    'marginBottom': '8px',
+    'marginTop': '16px',
+}
+_SIDEBAR_LABEL_FIRST = {**_SIDEBAR_LABEL, 'marginTop': '0'}
+
+_INPUT_STYLE = {
+    'width': '100%',
+    'height': '36px',
+    'border': '1px solid rgba(0,0,0,.18)',
+    'borderRadius': '8px',
+    'padding': '0 10px',
+    'fontSize': '13px',
+    'background': '#f7f8fa',
+    'color': '#111827',
+    'marginBottom': '4px',
+    'boxSizing': 'border-box',
+}
+
+_BTN_PRIMARY = {
+    'width': '100%',
+    'padding': '10px 0',
+    'background': '#185FA5',
+    'color': '#fff',
+    'border': 'none',
+    'borderRadius': '8px',
+    'fontSize': '13px',
+    'fontWeight': '600',
+    'cursor': 'pointer',
+    'marginTop': '16px',
+}
+
+_BTN_SECONDARY = {
+    'width': '100%',
+    'padding': '9px 0',
+    'background': 'transparent',
+    'color': '#185FA5',
+    'border': '1px solid #185FA5',
+    'borderRadius': '8px',
+    'fontSize': '13px',
+    'fontWeight': '600',
+    'cursor': 'pointer',
+    'marginTop': '8px',
+}
+
 
 def define_app_layout():
     return html.Div([
-        dcc.DatePickerRange(
-            id='date-picker-range',
-            start_date_placeholder_text="Fecha inicial",
-            end_date_placeholder_text="Fecha final",
-            minimum_nights=0,
-            style={'margin': '10px'}
-        ),
-        dcc.Dropdown(
-            id='city-dropdown',
-            options=[{'label': ciudad, 'value': ciudad} for ciudad in json.loads(settings.CITIES)],
-            placeholder="Selecciona una ciudad",
-            style={'margin': '10px'}
-        ),
-        dcc.Input(
-            id='start-freq-input',
-            type='number',
-            placeholder='Frecuencia inicial (MHz)',
-            style={'margin': '10px'}
-        ),
-        dcc.Input(
-            id='end-freq-input',
-            type='number',
-            placeholder='Frecuencia final (MHz)',
-            style={'margin': '10px'}
-        ),
-        dcc.Loading(
-            id="loading-1",
-            type="default",
-            children=[
-                html.Div(
-                    id='data-container',  # This is the placeholder for the heatmaps and tables.
-                    style={'height': '70vh', 'overflowY': 'auto'}
-                )
-            ],
-            style={'margin': '10px'}
-        ),
-        dcc.Store(id='store-df-original'),
-        dcc.Store(id='store-df-clean'),
+
+        # ── Sidebar de filtros ─────────────────────────────────────────────────
+        html.Div([
+
+            html.Div('Período de análisis', style=_SIDEBAR_LABEL_FIRST),
+            dcc.DatePickerRange(
+                id='date-picker-range',
+                start_date_placeholder_text="Fecha inicial",
+                end_date_placeholder_text="Fecha final",
+                minimum_nights=0,
+                display_format='DD/MM/YYYY',
+                style={'width': '100%', 'marginBottom': '12px'},
+            ),
+
+            html.Div('Ciudad', style=_SIDEBAR_LABEL),
+            dcc.Dropdown(
+                id='city-dropdown',
+                options=[{'label': c, 'value': c} for c in json.loads(settings.CITIES)],
+                placeholder="Selecciona una ciudad",
+                style={'marginBottom': '4px'},
+            ),
+
+            html.Div('Rango de frecuencias (MHz)', style=_SIDEBAR_LABEL),
+            dcc.Input(
+                id='start-freq-input',
+                type='number',
+                placeholder='Frecuencia inicial',
+                style=_INPUT_STYLE,
+            ),
+            dcc.Input(
+                id='end-freq-input',
+                type='number',
+                placeholder='Frecuencia final',
+                style=_INPUT_STYLE,
+            ),
+
+        ], style={
+            'width': '260px',
+            'flexShrink': '0',
+            'background': '#ffffff',
+            'borderRight': '1px solid rgba(0,0,0,.10)',
+            'padding': '20px 18px',
+            'overflowY': 'auto',
+            'display': 'flex',
+            'flexDirection': 'column',
+        }),
+
+        # ── Área principal ─────────────────────────────────────────────────────
+        html.Div([
+
+            dcc.Loading(
+                id="loading-1",
+                type="circle",
+                color='#185FA5',
+                children=[
+                    html.Div(
+                        id='data-container',
+                        style={'minHeight': '400px'},
+                    )
+                ],
+            ),
+
+            # Stores
+            dcc.Store(id='store-df-original'),
+            dcc.Store(id='store-df-clean'),
+
+        ], style={
+            'flex': '1',
+            'minWidth': '0',
+            'padding': '20px',
+            'overflowY': 'auto',
+            'background': '#f0f2f5',
+        }),
+
     ], style={
         'display': 'flex',
-        'flex-direction': 'column',
-        'justify-content': 'flex-start',  # Aligns children to the start of the container
-        'align-items': 'stretch',  # Stretches children to fill the container width
-        'min-height': '100vh',  # Ensures at least the height of the viewport
-        'height': 'auto',  # Allows the container to grow beyond the viewport height if needed
+        'flexDirection': 'row',
+        'minHeight': '100%',
+        'height': 'auto',
+        'background': '#f0f2f5',
     })
 
 
@@ -105,7 +191,7 @@ def register_callbacks():
 
     @app.callback(
         [Output('scatter', 'figure'),
-         Output('table', 'data')],  # Add the table container as an output
+         Output('table', 'data')],
         [Input('threshold-slider', 'value')],
         [State('store-df-original', 'data')]
     )
@@ -115,8 +201,8 @@ def register_callbacks():
         x_range = [scatter_df['frecuencia_hz'].min(), scatter_df['frecuencia_hz'].max()]
         scatter_fig = create_scatter_plot(scatter_df, x_range, threshold)
         scatter_df.columns = ['Frecuencia (Hz)', 'Ocupación (%)']
-        table_data = scatter_df.to_dict('records')  # Convert the dataframe to a dictionary
-        return scatter_fig, table_data  # Return the scatter plot figure and the table data
+        table_data = scatter_df.to_dict('records')
+        return scatter_fig, table_data
 
     @app.callback(
         [Output('table-container', 'style'),
@@ -162,9 +248,8 @@ def register_callbacks():
             'level_dbuv_m': 'Nivel de Intensidad de Campo Eléctrico (dBµV/m)',
             'offset_hz': 'Offset (Hz)',
             'modulation_value': 'Valor de Modulación',
-            'bandwidth_hz': 'Ancho de Banda (Hz)'
+            'bandwidth_hz': 'Ancho de Banda (Hz)',
         }
-
         return create_heatmap_data(df, parameter, titles.get(parameter, ''))
 
     register_intermod_callbacks()
@@ -185,16 +270,16 @@ def register_intermod_callbacks():
                 id={'type': 'source-start', 'index': len(children)},
                 type='number',
                 placeholder=f'Inicio rango {len(children) + 1}',
-                className='w-32 p-2 border rounded'
+                style={**_INPUT_STYLE, 'width': '45%', 'display': 'inline-block', 'marginRight': '4px'},
             ),
-            html.Span(' - ', className='mx-2'),
+            html.Span(' - ', style={'color': '#9ca3af', 'margin': '0 4px'}),
             dcc.Input(
                 id={'type': 'source-end', 'index': len(children)},
                 type='number',
                 placeholder=f'Fin rango {len(children) + 1}',
-                className='w-32 p-2 border rounded'
-            )
-        ], className='flex items-center mb-2')
+                style={**_INPUT_STYLE, 'width': '45%', 'display': 'inline-block'},
+            ),
+        ], style={'marginBottom': '6px'})
 
         return children + [new_range]
 
@@ -208,19 +293,18 @@ def register_intermod_callbacks():
          State('source-ranges-container', 'children'),
          State('store-df-original', 'data')]
     )
-    def update_intermod_analysis(n_clicks, analysis_start, analysis_end, intermod_types, source_ranges_children, data):
+    def update_intermod_analysis(n_clicks, analysis_start, analysis_end, intermod_types,
+                                 source_ranges_children, data):
         if n_clicks is None:
             return go.Figure(), []
 
         if not all([analysis_start, analysis_end, data, intermod_types]):
             return go.Figure(), []
 
-        # Convertir los datos a DataFrame
         df = pd.DataFrame(data)
         if df.empty:
             return go.Figure(), []
 
-        # Obtener rangos de fuente de los inputs
         source_ranges = []
         for child in source_ranges_children:
             try:
@@ -231,24 +315,15 @@ def register_intermod_callbacks():
             except (TypeError, KeyError):
                 continue
 
-        # Convertir MHz a Hz para el análisis
         analysis_range = (analysis_start * 1e6, analysis_end * 1e6)
 
-        # Calcular productos de intermodulación
         products_df = calculate_intermodulation_products(
             df,
             intermod_types,
             [(start * 1e6, end * 1e6) for start, end in source_ranges]
         )
 
-        # Crear visualización
-        fig = create_intermod_heatmap(
-            df,
-            products_df,
-            analysis_range,
-            source_ranges
-        )
-
+        fig = create_intermod_heatmap(df, products_df, analysis_range, source_ranges)
         return fig, products_df.to_dict('records')
 
     @app.callback(
@@ -267,13 +342,9 @@ def register_intermod_callbacks():
             return [html.Div()]
 
         try:
-            # Parsear frecuencias específicas
             selected_frequencies = [float(f.strip()) for f in specific_freqs.split(',')]
-
-            # Convertir datos a DataFrame
             df = pd.DataFrame(data)
 
-            # Obtener rangos de fuente
             source_ranges = []
             for child in source_ranges_children:
                 try:
@@ -284,51 +355,54 @@ def register_intermod_callbacks():
                 except (TypeError, KeyError):
                     continue
 
-            # Calcular productos de intermodulación
-            products_df = calculate_intermodulation_products(
-                df,
-                intermod_types,
-                source_ranges
-            )
-
-            # Analizar frecuencias específicas
+            products_df = calculate_intermodulation_products(df, intermod_types, source_ranges)
             results = analyze_specific_frequencies(df, products_df, selected_frequencies)
 
-            # Crear visualización de resultados
             return [html.Div([
                 html.Div([
-                    html.H4(f'Frecuencia: {freq} MHz', className='text-lg font-bold mb-2'),
+                    html.H4(
+                        f'Frecuencia: {freq} MHz',
+                        style={'fontSize': '15px', 'fontWeight': '600', 'marginBottom': '8px', 'color': '#111827'}
+                    ),
                     html.Div([
-                        html.P(f'Nivel promedio medido: {info["average_level"]:.2f} dBµV/m'),
-                        html.P(f'Número de productos que afectan: {info["num_products"]}'),
-                        html.P(f'Contribución total de productos: {info["total_contribution"]:.2f} dBµV/m'),
-
-                        # Tabla de productos que contribuyen
-                        html.Div([
-                            html.H5('Productos que contribuyen:', className='font-bold mt-2'),
-                            dash_table.DataTable(
-                                data=info['contributing_products'],
-                                columns=[
-                                    {'name': 'Tipo', 'id': 'type'},
-                                    {'name': 'Ecuación', 'id': 'equation'},
-                                    {'name': 'Nivel', 'id': 'level'},
-                                ],
-                                style_table={'overflowX': 'auto'},
-                                style_cell={'textAlign': 'left'},
-                                style_header={'fontWeight': 'bold'}
-                            ) if info['contributing_products'] else html.P(
-                                'No hay productos que afecten a esta frecuencia')
-                        ]),
-
-                        # Gráfico de nivel en el tiempo
-                        dcc.Graph(
-                            figure=create_frequency_timeline(info['measurements'], freq)
-                        )
-                    ], className='p-4 border rounded')
-                ], className='mb-6') for freq, info in results.items()
-            ])]
+                        html.P(f'Nivel promedio medido: {info["average_level"]:.2f} dBµV/m',
+                               style={'fontSize': '13px', 'color': '#374151'}),
+                        html.P(f'Número de productos que afectan: {info["num_products"]}',
+                               style={'fontSize': '13px', 'color': '#374151'}),
+                        html.P(f'Contribución total de productos: {info["total_contribution"]:.2f} dBµV/m',
+                               style={'fontSize': '13px', 'color': '#374151'}),
+                    ]),
+                    html.Div([
+                        html.H5('Productos que contribuyen:',
+                                style={'fontSize': '13px', 'fontWeight': '600', 'marginBottom': '6px',
+                                       'marginTop': '10px'}),
+                        dash_table.DataTable(
+                            data=info['contributing_products'],
+                            columns=[
+                                {'name': 'Tipo', 'id': 'type'},
+                                {'name': 'Ecuación', 'id': 'equation'},
+                                {'name': 'Nivel', 'id': 'level'},
+                            ],
+                            style_table={'overflowX': 'auto'},
+                            style_cell={'textAlign': 'left', 'fontSize': '13px'},
+                            style_header={'fontWeight': '700', 'backgroundColor': '#f7f8fa'},
+                        ) if info['contributing_products'] else html.P(
+                            'No hay productos que afecten a esta frecuencia',
+                            style={'fontSize': '13px', 'color': '#9ca3af'}
+                        ),
+                    ]),
+                    dcc.Graph(figure=create_frequency_timeline(info['measurements'], freq)),
+                ], style={
+                    'background': '#fff',
+                    'border': '1px solid rgba(0,0,0,.10)',
+                    'borderRadius': '10px',
+                    'padding': '16px',
+                    'marginBottom': '16px',
+                }),
+            ]) for freq, info in results.items()]
         except Exception as e:
-            return [html.Div(f'Error en el análisis: {str(e)}')]
+            return [html.Div(f'Error en el análisis: {str(e)}',
+                             style={'color': '#b91c1c', 'fontSize': '13px'})]
 
 
 async def customize_data_async(request):
@@ -345,16 +419,22 @@ def update_content(request):
     end_freq = request.GET.get('end_freq')
 
     if not all([fecha_inicio, fecha_fin, ciudad, start_freq, end_freq]):
-        return {}, {}, "Selecciona una fecha inicial, una fecha final, una ciudad, una frecuencia inicial y una frecuencia final"
+        return {}, {}, html.Div(
+            'Selecciona una fecha inicial, una fecha final, una ciudad y un rango de frecuencias.',
+            style={
+                'padding': '20px',
+                'background': '#eff6ff',
+                'border': '1px solid #bfdbfe',
+                'borderRadius': '8px',
+                'fontSize': '13px',
+                'color': '#1e40af',
+            }
+        )
 
     data = asyncio.run(customize_data_async(request))
-
     df_original, df_clean = data
-
     df_original = convert_timestamps_to_strings(df_original)
-
     tabs_layout = create_heatmap_layout(df_original)
-
     return df_original.to_dict('records'), df_clean.to_dict('records'), tabs_layout
 
 

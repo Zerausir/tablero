@@ -1,43 +1,81 @@
-{% load static %}  <!-- Load the static files tag -->
-{% load plotly_dash %}  <!-- Load the Plotly Dash tag -->
-
+{% load static %}
+{% load plotly_dash %}
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, shrink-to-fit=no">
-    <title>GPR</title>
-    <!-- Link to CSS static files if any -->
+    <title>GPR — Tablero SACER</title>
     <link rel="stylesheet" href="{% static 'css/outer.css' %}">
-    <!-- You can add additional CSS links here -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.10.0/dist/tabler-icons.min.css">
 </head>
 <body>
-<div id="dashboard-container">
-    <h1>Resultados GPR</h1>
-    <!-- Embed your DjangoDash app -->
-    {% plotly_app_bootstrap name="GprApp" %}
+
+<div class="module-shell">
+
+    <!-- Topbar -->
+    <header class="topbar" role="banner">
+        <a href="{% url 'index' %}" class="topbar-back" aria-label="Volver al Panel principal">
+            <i class="ti ti-arrow-left" aria-hidden="true" style="font-size: 15px;"></i>
+            Panel
+        </a>
+
+        <div class="topbar-sep" aria-hidden="true"></div>
+
+        <nav aria-label="Ruta de navegación">
+            <ol style="list-style:none; display:flex; align-items:center; gap:6px; margin:0; padding:0;">
+                <li><span class="topbar-section">Inicio</span></li>
+                <li><span class="topbar-section" aria-hidden="true">/</span></li>
+                <li><span style="font-size:13px; font-weight:600; color:#fff;">GPR</span></li>
+            </ol>
+        </nav>
+
+        <div class="topbar-spacer"></div>
+
+        <div class="topbar-user">
+            <div class="topbar-avatar" aria-hidden="true">
+                {{ request.user.first_name|first|upper }}{{ request.user.last_name|first|upper }}
+            </div>
+            <span class="topbar-username">{{ request.user.get_full_name|default:request.user.username }}</span>
+        </div>
+    </header>
+
+    <!-- Cabecera del módulo -->
+    <div class="module-header-strip">
+        <div class="module-header-icon" style="background: #FAEEDA;" aria-hidden="true">
+            <i class="ti ti-report-analytics" style="font-size: 20px; color: #854F0B;"></i>
+        </div>
+        <div>
+            <div class="module-header-title">Gestión por Resultados — GPR</div>
+            <div class="module-header-sub">
+                Seguimiento de indicadores PACT &middot; Metas planificadas vs. cumplidas
+            </div>
+        </div>
+    </div>
+
+    <!-- Contenido Dash -->
+    <div class="module-body">
+        <div class="dash-embed">
+            {% plotly_app_bootstrap name="GprApp" %}
+        </div>
+    </div>
+
 </div>
+
 <script>
     function checkSession() {
-        fetch('/check_session/', {
-            method: 'GET',
-            credentials: 'same-origin'
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (!data.is_authenticated) {
-                window.location.href = '{% url "login" %}';
-            }
-        });
+        fetch('/check_session/', {method: 'GET', credentials: 'same-origin'})
+            .then(r => r.json())
+            .then(data => {
+                if (!data.is_authenticated) window.location.href = '{% url "login" %}';
+            });
     }
 
     setInterval(checkSession, 300000);
-
-    document.addEventListener("visibilitychange", function() {
-        if (!document.hidden) {
-            checkSession();
-        }
+    document.addEventListener('visibilitychange', function () {
+        if (!document.hidden) checkSession();
     });
 </script>
+
 </body>
 </html>

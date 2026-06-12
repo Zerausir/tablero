@@ -1,17 +1,170 @@
 {% load static %}
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Iniciar sesión</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, shrink-to-fit=no">
+    <title>Iniciar sesión — Tablero SACER</title>
     <link rel="stylesheet" href="{% static 'css/outer.css' %}">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.10.0/dist/tabler-icons.min.css">
 </head>
 <body>
-    <h2>Iniciar sesión</h2>
-    <form method="post">
-        {% csrf_token %}
-        {{ form.as_p }}
-        <button type="submit">Iniciar sesión</button>
-    </form>
+
+<div class="login-layout">
+
+    <!-- Sidebar izquierdo con identidad institucional -->
+    <aside class="login-sidebar" aria-label="Información del sistema">
+        <div class="login-sidebar-logo">
+            <div class="login-logo-mark">
+                <i class="ti ti-radio" aria-hidden="true"></i>
+            </div>
+            <div>
+                <div class="login-logo-text-name">Tablero SACER</div>
+                <div class="login-logo-text-sub">ARCOTEL &middot; Ecuador</div>
+            </div>
+        </div>
+
+        <p class="login-sidebar-desc">
+            Sistema de visualización y análisis de datos para el control
+            del espectro radioeléctrico nacional.
+        </p>
+
+        <div class="login-sidebar-divider"></div>
+
+        <div class="login-feature">
+            <i class="ti ti-antenna login-feature-icon" aria-hidden="true"></i>
+            <span class="login-feature-text">
+                Análisis en tiempo real de parámetros técnicos RTV con el sistema SACER
+            </span>
+        </div>
+        <div class="login-feature">
+            <i class="ti ti-wave-square login-feature-icon" aria-hidden="true"></i>
+            <span class="login-feature-text">
+                Monitoreo de ocupación espectral por banda y frecuencia a nivel nacional
+            </span>
+        </div>
+        <div class="login-feature">
+            <i class="ti ti-report-analytics login-feature-icon" aria-hidden="true"></i>
+            <span class="login-feature-text">
+                Seguimiento de indicadores GPR y metas PACT del plan anual de control
+            </span>
+        </div>
+
+        <footer class="login-sidebar-footer">
+            Uso exclusivo del personal autorizado de ARCOTEL.<br>
+            Toda actividad queda registrada por el sistema.<br><br>
+            &copy; 2024&ndash;2025 Zerausir. Todos los derechos reservados.
+        </footer>
+    </aside>
+
+    <!-- Panel de login -->
+    <main class="login-main" aria-label="Formulario de inicio de sesión">
+        <div class="login-card">
+            <h1 class="login-card-headline">Iniciar sesión</h1>
+            <p class="login-card-sub">Ingresa tus credenciales institucionales para continuar</p>
+
+            <!-- Mensajes de error de Django -->
+            {% if form.non_field_errors %}
+            <ul class="login-error-list" role="alert">
+                {% for error in form.non_field_errors %}
+                <li>{{ error }}</li>
+                {% endfor %}
+            </ul>
+            {% endif %}
+
+            {% if form.errors and not form.non_field_errors %}
+            <ul class="login-error-list" role="alert">
+                <li>Usuario o contraseña incorrectos. Por favor, intenta de nuevo.</li>
+            </ul>
+            {% endif %}
+
+            <form method="post" novalidate>
+                {% csrf_token %}
+
+                <!-- Campo usuario -->
+                <div style="margin-bottom: 18px;">
+                    <label for="{{ form.username.id_for_label }}">Usuario</label>
+                    <input
+                            type="text"
+                            id="{{ form.username.id_for_label }}"
+                            name="{{ form.username.html_name }}"
+                            value="{{ form.username.value|default:'' }}"
+                            placeholder="usuario.apellido"
+                            autocomplete="username"
+                            autofocus
+                            required
+                    >
+                </div>
+
+                <!-- Campo contraseña -->
+                <div style="margin-bottom: 24px; position: relative;">
+                    <label for="{{ form.password.id_for_label }}">Contraseña</label>
+                    <div style="position: relative;">
+                        <input
+                                type="password"
+                                id="{{ form.password.id_for_label }}"
+                                name="{{ form.password.html_name }}"
+                                placeholder="••••••••"
+                                autocomplete="current-password"
+                                required
+                                style="padding-right: 44px;"
+                        >
+                        <button
+                                type="button"
+                                id="toggle-pw"
+                                aria-label="Mostrar u ocultar contraseña"
+                                style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+                                   background: none; border: none; cursor: pointer; color: #6b7280;
+                                   display: flex; align-items: center; padding: 0;"
+                        >
+                            <i class="ti ti-eye" id="pw-eye-icon" aria-hidden="true" style="font-size: 18px;"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <button type="submit" class="login-submit-btn">
+                    Iniciar sesión
+                </button>
+
+                <!-- next field oculto si Django lo genera -->
+                {% if next %}
+                <input type="hidden" name="next" value="{{ next }}">
+                {% endif %}
+            </form>
+
+            <div class="login-security-strip">
+                <i class="ti ti-shield-check login-security-icon" aria-hidden="true"></i>
+                <span>Sesión protegida &middot; HTTPS &middot; Cierre automático en 30 min</span>
+            </div>
+
+            <p class="login-access-note">
+                Acceso restringido a personal autorizado de ARCOTEL.<br>
+                Toda actividad es registrada por la plataforma.
+            </p>
+        </div>
+    </main>
+</div>
+
+<script>
+    (function () {
+        var btn = document.getElementById('toggle-pw');
+        var field = document.getElementById('{{ form.password.id_for_label }}');
+        var icon = document.getElementById('pw-eye-icon');
+        if (btn && field && icon) {
+            btn.addEventListener('click', function () {
+                if (field.type === 'password') {
+                    field.type = 'text';
+                    icon.className = 'ti ti-eye-off';
+                    btn.setAttribute('aria-label', 'Ocultar contraseña');
+                } else {
+                    field.type = 'password';
+                    icon.className = 'ti ti-eye';
+                    btn.setAttribute('aria-label', 'Mostrar contraseña');
+                }
+            });
+        }
+    })();
+</script>
+
 </body>
 </html>
