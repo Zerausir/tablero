@@ -22,7 +22,7 @@ app = DjangoDash(
     external_stylesheets=["/static/css/inner.css"]
 )
 
-# ── Estilos internos de la barra lateral ──────────────────────────────────────
+# ── Estilos internos ──────────────────────────────────────────────────────────
 _SIDEBAR_LABEL = {
     'fontSize': '10px',
     'fontWeight': '700',
@@ -33,14 +33,6 @@ _SIDEBAR_LABEL = {
     'marginTop': '16px',
 }
 _SIDEBAR_LABEL_FIRST = {**_SIDEBAR_LABEL, 'marginTop': '0'}
-
-_FIELD_LABEL = {
-    'display': 'block',
-    'fontSize': '12px',
-    'fontWeight': '500',
-    'color': '#4b5563',
-    'marginBottom': '5px',
-}
 
 _CHECK_ITEM = {
     'display': 'flex',
@@ -56,37 +48,11 @@ _CHECK_ITEM = {
     'marginBottom': '8px',
 }
 
-_BTN_PRIMARY = {
-    'width': '100%',
-    'padding': '10px 0',
-    'background': '#0B3D91',
-    'color': '#fff',
-    'border': 'none',
-    'borderRadius': '8px',
-    'fontSize': '13px',
-    'fontWeight': '600',
-    'cursor': 'pointer',
-    'marginTop': '16px',
-}
-
-_BTN_SECONDARY = {
-    'width': '100%',
-    'padding': '9px 0',
-    'background': 'transparent',
-    'color': '#0B3D91',
-    'border': '1px solid #0B3D91',
-    'borderRadius': '8px',
-    'fontSize': '13px',
-    'fontWeight': '600',
-    'cursor': 'pointer',
-    'marginTop': '8px',
-}
-
 
 def define_app_layout():
     return html.Div([
 
-        # ── Sidebar de filtros ─────────────────────────────────────────────────
+        # ── Sidebar ────────────────────────────────────────────────────────────
         html.Div([
 
             html.Div('Período de análisis', style=_SIDEBAR_LABEL_FIRST),
@@ -96,6 +62,7 @@ def define_app_layout():
                 end_date_placeholder_text="Fecha final",
                 minimum_nights=0,
                 display_format='DD/MM/YYYY',
+                with_portal=True,
                 style={'width': '100%', 'marginBottom': '12px'},
             ),
 
@@ -130,15 +97,23 @@ def define_app_layout():
                 labelStyle=_CHECK_ITEM,
             ),
 
-            # Mostrar/Ocultar resultados tabulares
-            html.Div([
-                html.Button(
-                    'Mostrar / Ocultar resultados',
-                    id='toggle-results-button',
-                    n_clicks=0,
-                    style=_BTN_SECONDARY,
-                ),
-            ], id='results-container'),
+            html.Button(
+                'Mostrar / Ocultar resultados',
+                id='toggle-results-button',
+                n_clicks=0,
+                style={
+                    'width': '100%',
+                    'padding': '9px 0',
+                    'background': 'transparent',
+                    'color': '#0B3D91',
+                    'border': '1px solid #0B3D91',
+                    'borderRadius': '8px',
+                    'fontSize': '13px',
+                    'fontWeight': '600',
+                    'cursor': 'pointer',
+                    'marginTop': '16px',
+                },
+            ),
 
         ], style={
             'width': '270px',
@@ -149,32 +124,29 @@ def define_app_layout():
             'overflowY': 'auto',
             'display': 'flex',
             'flexDirection': 'column',
+            'height': '100%',
         }),
 
-        # ── Área principal de contenido ────────────────────────────────────────
+        # ── Área principal ─────────────────────────────────────────────────────
         html.Div([
 
             dcc.Loading(
                 id="loading-1",
                 type="circle",
                 color='#0B3D91',
-                children=[
-                    html.Div(
-                        id='data-container',
-                        style={'minHeight': '400px'},
-                    )
-                ],
-            ),
-
-            # Tabla de datos (toggle)
-            dcc.Loading(
-                id="loading-table",
-                type="circle",
-                color='#0B3D91',
-                children=[html.Div(id='table-container')],
+                children=[html.Div(id='data-container', style={'minHeight': '400px'})],
             ),
 
             html.Div(id='station-plots-container'),
+
+            html.Div([
+                dcc.Loading(
+                    id="loading-table",
+                    type="circle",
+                    color='#0B3D91',
+                    children=[html.Div(id='table-container')]
+                )
+            ], id='results-container', style={'display': 'none'}),
 
         ], style={
             'flex': '1',
@@ -182,9 +154,10 @@ def define_app_layout():
             'padding': '20px',
             'overflowY': 'auto',
             'background': '#f0f2f5',
+            'height': '100%',
         }),
 
-        # ── Stores (invisibles) ────────────────────────────────────────────────
+        # ── Stores ─────────────────────────────────────────────────────────────
         dcc.Store(id='store-df-original1'),
         dcc.Store(id='store-df-original2'),
         dcc.Store(id='store-df-original3'),
@@ -201,13 +174,27 @@ def define_app_layout():
     ], style={
         'display': 'flex',
         'flexDirection': 'row',
-        'minHeight': '100%',
-        'height': 'auto',
+        'height': '100vh',
         'background': '#f0f2f5',
     })
 
 
 app.layout = define_app_layout()
+
+
+def _inject_figures(component, figure_map):
+    """Recursively walk a Dash component tree and set figures on matching dcc.Graph ids."""
+    if hasattr(component, 'id') and component.id in figure_map:
+        component.figure = figure_map[component.id]
+    children = getattr(component, 'children', None)
+    if children is None:
+        return
+    if isinstance(children, list):
+        for child in children:
+            if hasattr(child, 'id') or hasattr(child, 'children'):
+                _inject_figures(child, figure_map)
+    elif hasattr(children, 'id') or hasattr(children, 'children'):
+        _inject_figures(children, figure_map)
 
 
 def register_callbacks():
@@ -252,6 +239,12 @@ def register_callbacks():
                     no_data_message = ""
                     tabs_layout = create_heatmap_layout(df_original1, df_original2, df_original3, selected_freq1,
                                                         selected_freq2, selected_freq3)
+                    # Inject pre-built figures into the dcc.Graph components so that
+                    # heatmaps render on every tab switch without requiring re-fetch.
+                    fig1 = create_heatmap_data(df_original1)
+                    fig2 = create_heatmap_data(df_original2)
+                    fig3 = create_heatmap_data(df_original3)
+                    _inject_figures(tabs_layout, {'heatmap1': fig1, 'heatmap2': fig2, 'heatmap3': fig3})
 
                 return (df_original1.to_dict('records'), df_original2.to_dict('records'),
                         df_original3.to_dict('records'), df_clean1.to_dict('records'),
@@ -293,6 +286,16 @@ def register_callbacks():
         return stored_freq
 
     @app.callback(
+        Output('results-container', 'style'),
+        [Input('current-tab', 'data')]
+    )
+    def toggle_results_visibility(current_tab):
+        if current_tab in ['tab-4', 'tab-5']:
+            return {'display': 'none'}
+        else:
+            return {'display': 'block'}
+
+    @app.callback(
         Output('table-container', 'children'),
         [Input('toggle-results-button', 'n_clicks'),
          Input('frequency-dropdown1', 'value'),
@@ -305,7 +308,6 @@ def register_callbacks():
          State('table-container', 'children')]
     )
     def update_table_visibility(n_clicks, freq1, freq2, freq3, current_tab, data1, data2, data3, current_table):
-        """Update table visibility based on current tab and button clicks"""
         if current_tab in ['tab-4', 'tab-5']:
             return []
 
@@ -356,9 +358,10 @@ def register_callbacks():
         Output('heatmap1', 'figure'),
         [Input('date-picker-range', 'start_date'),
          Input('date-picker-range', 'end_date'),
-         Input('city-dropdown', 'value')]
+         Input('city-dropdown', 'value'),
+         Input('tabs-container', 'value')]
     )
-    def update_heatmap1(fecha_inicio, fecha_fin, ciudad):
+    def update_heatmap1(fecha_inicio, fecha_fin, ciudad, _tab):
         if not all([fecha_inicio, fecha_fin, ciudad]):
             return go.Figure()
 
@@ -379,9 +382,10 @@ def register_callbacks():
         Output('heatmap2', 'figure'),
         [Input('date-picker-range', 'start_date'),
          Input('date-picker-range', 'end_date'),
-         Input('city-dropdown', 'value')]
+         Input('city-dropdown', 'value'),
+         Input('tabs-container', 'value')]
     )
-    def update_heatmap2(fecha_inicio, fecha_fin, ciudad):
+    def update_heatmap2(fecha_inicio, fecha_fin, ciudad, _tab):
         if not all([fecha_inicio, fecha_fin, ciudad]):
             return go.Figure()
 
@@ -402,9 +406,10 @@ def register_callbacks():
         Output('heatmap3', 'figure'),
         [Input('date-picker-range', 'start_date'),
          Input('date-picker-range', 'end_date'),
-         Input('city-dropdown', 'value')]
+         Input('city-dropdown', 'value'),
+         Input('tabs-container', 'value')]
     )
-    def update_heatmap3(fecha_inicio, fecha_fin, ciudad):
+    def update_heatmap3(fecha_inicio, fecha_fin, ciudad, _tab):
         if not all([fecha_inicio, fecha_fin, ciudad]):
             return go.Figure()
 
@@ -422,39 +427,91 @@ def register_callbacks():
             return go.Figure()
 
     @app.callback(
-        Output('station-plots-container', 'children'),
-        [Input('frequency-dropdown1', 'value'),
-         Input('frequency-dropdown2', 'value'),
-         Input('frequency-dropdown3', 'value'),
+        [Output('store-df-warnings', 'data'),
+         Output('store-df-alerts', 'data')],
+        [Input('date-picker-range', 'start_date'),
+         Input('date-picker-range', 'end_date'),
+         Input('city-dropdown', 'value')]
+    )
+    def update_warnings_alerts_data(start_date, end_date, city):
+        if not all([start_date, end_date, city]):
+            return {}, {}
+
+        request = HttpRequest()
+        request.GET = QueryDict(f'start_date={start_date}&end_date={end_date}&city={city}')
+
+        try:
+            df_warnings_all, df_alerts_all = marks_rtv_warnings_data(request)
+
+            if not df_warnings_all.empty and not df_alerts_all.empty:
+                return df_warnings_all.to_dict('records'), df_alerts_all.to_dict('records')
+            else:
+                return {}, {}
+        except Exception as e:
+            print(f"Error al procesar datos de advertencias y alertas: {str(e)}")
+            return {}, {}
+
+    @app.callback(
+        Output('station-plots-container-am', 'children'),
+        [Input('frequency-dropdown3', 'value'),
+         Input('store-df-original3', 'data'),
          Input('checkbox', 'value'),
          Input('checkbox-warnings', 'value'),
          Input('checkbox-alerts', 'value'),
-         Input('current-tab', 'data')],
-        [State('store-df-original1', 'data'),
-         State('store-df-original2', 'data'),
-         State('store-df-original3', 'data'),
-         State('store-df-warnings', 'data'),
-         State('store-df-alerts', 'data'),
-         State('city-dropdown', 'value')]
+         Input('city-dropdown', 'value')],
+        [State('store-df-warnings', 'data'),
+         State('store-df-alerts', 'data')]
     )
-    def update_station_plots(freq1, freq2, freq3, checkbox_value, checkbox_warnings, checkbox_alerts,
-                             current_tab, data1, data2, data3, df_warnings_data, df_alerts_data, ciudad):
-        autorizations_selected = 'auth_suspension' in (checkbox_value or [])
-        show_warnings = 'show_warnings' in (checkbox_warnings or [])
-        show_alerts = 'show_alerts' in (checkbox_alerts or [])
+    def update_am_station_plot(freq3, data3, autorizations, show_warnings, show_alerts, ciudad, warnings_data,
+                               alerts_data):
+        if freq3 and data3:
+            df_warnings = pd.DataFrame(warnings_data) if warnings_data else None
+            df_alerts = pd.DataFrame(alerts_data) if alerts_data else None
+            return html.Div(
+                update_station_plot_am(freq3, data3, autorizations, show_warnings, show_alerts, ciudad, df_warnings,
+                                       df_alerts))
+        return html.Div()
 
-        df_warnings = pd.DataFrame(df_warnings_data) if df_warnings_data else pd.DataFrame()
-        df_alerts = pd.DataFrame(df_alerts_data) if df_alerts_data else pd.DataFrame()
+    @app.callback(
+        Output('station-plots-container-fm', 'children'),
+        [Input('frequency-dropdown1', 'value'),
+         Input('store-df-original1', 'data'),
+         Input('checkbox', 'value'),
+         Input('checkbox-warnings', 'value'),
+         Input('checkbox-alerts', 'value'),
+         Input('city-dropdown', 'value')],
+        [State('store-df-warnings', 'data'),
+         State('store-df-alerts', 'data')]
+    )
+    def update_fm_station_plot(freq1, data1, autorizations, show_warnings, show_alerts, ciudad, warnings_data,
+                               alerts_data):
+        if freq1 and data1:
+            df_warnings = pd.DataFrame(warnings_data) if warnings_data else None
+            df_alerts = pd.DataFrame(alerts_data) if alerts_data else None
+            return html.Div(
+                update_station_plot_fm(freq1, data1, autorizations, show_warnings, show_alerts, ciudad, df_warnings,
+                                       df_alerts))
+        return html.Div()
 
-        if current_tab == 'tab-1' and freq1 and data1:
-            return update_station_plot_fm(freq1, data1, autorizations_selected, show_warnings,
-                                          show_alerts, ciudad, df_warnings, df_alerts)
-        elif current_tab == 'tab-2' and freq2 and data2:
-            return update_station_plot_tv(freq2, data2, autorizations_selected, show_warnings,
-                                          show_alerts, ciudad, df_warnings, df_alerts)
-        elif current_tab == 'tab-3' and freq3 and data3:
-            return update_station_plot_am(freq3, data3, autorizations_selected, show_warnings,
-                                          show_alerts, ciudad, df_warnings, df_alerts)
+    @app.callback(
+        Output('station-plots-container-tv', 'children'),
+        [Input('frequency-dropdown2', 'value'),
+         Input('store-df-original2', 'data'),
+         Input('checkbox', 'value'),
+         Input('checkbox-warnings', 'value'),
+         Input('checkbox-alerts', 'value'),
+         Input('city-dropdown', 'value')],
+        [State('store-df-warnings', 'data'),
+         State('store-df-alerts', 'data')]
+    )
+    def update_tv_station_plot(freq2, data2, autorizations, show_warnings, show_alerts, ciudad, warnings_data,
+                               alerts_data):
+        if freq2 and data2:
+            df_warnings = pd.DataFrame(warnings_data) if warnings_data else None
+            df_alerts = pd.DataFrame(alerts_data) if alerts_data else None
+            return html.Div(
+                update_station_plot_tv(freq2, data2, autorizations, show_warnings, show_alerts, ciudad, df_warnings,
+                                       df_alerts))
         return html.Div()
 
     @app.callback(
@@ -509,44 +566,116 @@ def register_callbacks():
             if df_warnings.empty:
                 return "No se encontraron datos de advertencias para los parámetros seleccionados."
 
-            warnings_data = process_warnings_data(df_warnings)
-            return create_warnings_tables(warnings_data)
+            df_5_days, df_9_days, df_60_days, df_91_days = process_warnings_data(df_warnings)
+            tables = create_warnings_tables(df_5_days, df_9_days, df_60_days, df_91_days)
+            return html.Div(tables)
         except Exception as e:
-            return f"Error al obtener datos de advertencias: {str(e)}"
+            import traceback
+            error_msg = f"Error al procesar los datos de advertencias: {str(e)}\n\n"
+            error_msg += traceback.format_exc()
+            print(error_msg)
+            return error_msg
 
     @app.callback(
-        [Output('download-excel', 'data'),
-         Output('download-excel-button', 'children')],
-        [Input('download-excel-button', 'n_clicks')],
+        Output('download-excel', 'data'),
+        Input('download-excel-button', 'n_clicks'),
         [State('date-picker-range', 'start_date'),
          State('date-picker-range', 'end_date'),
-         State('city-dropdown', 'value')]
+         State('city-dropdown', 'value')],
+        prevent_initial_call=True
     )
-    def download_warnings_excel(n_clicks, start_date, end_date, city):
+    def download_tables_excel(n_clicks, start_date, end_date, city):
         if not n_clicks or not all([start_date, end_date, city]):
-            return dash.no_update, 'Descargar Tablas en Excel'
+            raise PreventUpdate
 
         request = HttpRequest()
-        request.GET = QueryDict(mutable=True)
-        request.GET['start_date'] = start_date
-        request.GET['end_date'] = end_date
-        request.GET['city'] = city
+        request.GET = QueryDict(f'start_date={start_date}&end_date={end_date}&city={city}')
 
         try:
             df_warnings = customize_rtv_warnings_data(request)
-            marks_data = marks_rtv_warnings_data(request)
+
+            if df_warnings.empty:
+                raise PreventUpdate
+
+            df_5_days, df_9_days, df_60_days, df_91_days = process_warnings_data(df_warnings)
 
             output = io.BytesIO()
             with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-                df_warnings.to_excel(writer, sheet_name='Advertencias', index=False)
-                if marks_data is not None and not marks_data.empty:
-                    marks_data.to_excel(writer, sheet_name='Marcas', index=False)
+                def prepare_df_for_excel(df, sheet_name):
+                    if not df.empty:
+                        if 'Frecuencia (Hz)' in df.columns:
+                            df['Frecuencia (Hz)'] = df['Frecuencia (Hz)'].astype(str)
 
-            output.seek(0)
-            filename = f'Advertencias_RTV_{city}_{start_date}_{end_date}.xlsx'
-            return dcc.send_bytes(output.getvalue(), filename), 'Descargar Tablas en Excel'
+                        df = df.fillna('')
+
+                        for col in df.columns:
+                            if col.endswith('_inicio'):
+                                col_base = col[:-7]
+                                df[col_base] = df.apply(
+                                    lambda row: f"{row[col]} al {row[col_base + '_fin']}"
+                                    if row[col] != '' and row[col_base + '_fin'] != ''
+                                    else '',
+                                    axis=1
+                                )
+                                df = df.drop(columns=[col, col_base + '_fin'])
+
+                        df.to_excel(writer, sheet_name=sheet_name, index=False)
+
+                        workbook = writer.book
+                        worksheet = writer.sheets[sheet_name]
+
+                        header_format = workbook.add_format({'bold': True, 'border': 1, 'bg_color': '#D9D9D9'})
+                        warning_format = workbook.add_format({'bg_color': '#FFFF99', 'border': 1})
+                        alert_format = workbook.add_format({'bg_color': '#FFCCCB', 'border': 1})
+                        border_format = workbook.add_format({'border': 1})
+                        number_format = workbook.add_format({'border': 1, 'num_format': '0'})
+
+                        for col_num, value in enumerate(df.columns.values):
+                            worksheet.write(0, col_num, value, header_format)
+
+                        worksheet.autofilter(0, 0, len(df), len(df.columns) - 1)
+
+                        for row_num in range(1, len(df) + 1):
+                            for col_num, col_name in enumerate(df.columns):
+                                try:
+                                    value = df.iloc[row_num - 1, col_num]
+                                    cell_format = border_format
+                                    if col_name == 'Frecuencia (Hz)':
+                                        cell_format = number_format
+                                    elif 'Adv.' in col_name:
+                                        cell_format = warning_format
+                                    elif 'Alert.' in col_name:
+                                        cell_format = alert_format
+                                    if col_name == 'Frecuencia (Hz)' and value != '':
+                                        try:
+                                            value = float(value)
+                                        except:
+                                            pass
+                                    worksheet.write(row_num, col_num, value, cell_format)
+                                except Exception as e:
+                                    worksheet.write(row_num, col_num, '', cell_format)
+
+                        for col_num, col_name in enumerate(df.columns):
+                            max_length = max(
+                                df[col_name].astype(str).apply(len).max(),
+                                len(col_name)
+                            )
+                            worksheet.set_column(col_num, col_num, max_length + 2)
+
+                        worksheet.freeze_panes(1, 0)
+
+                prepare_df_for_excel(df_5_days, 'Advertencias 5 días')
+                prepare_df_for_excel(df_9_days, 'Alertas 9 días')
+                prepare_df_for_excel(df_60_days, 'Advertencias 60 días')
+                prepare_df_for_excel(df_91_days, 'Alertas 91 días')
+
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f'observaciones_{city}_{timestamp}.xlsx'
+            return dcc.send_bytes(output.getvalue(), filename)
+
         except Exception as e:
-            return dash.no_update, f'Error: {str(e)}'
+            print(f"Error generating Excel file: {str(e)}")
+            raise PreventUpdate
 
     @app.callback(
         [Output('download-report-excel', 'data'),

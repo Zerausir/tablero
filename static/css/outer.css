@@ -204,7 +204,7 @@ a:hover {
 
 /* ── Module shell (topbar + dash content full height) ─────── */
 .module-shell {
-    min-height: 100vh;
+    height: 100vh;
     display: flex;
     flex-direction: column;
 }
@@ -213,10 +213,7 @@ a:hover {
     flex: 1;
     display: flex;
     flex-direction: column;
-    /* Allow content to grow naturally — do NOT set min-height:0 here
-       because that collapses the flex child when Dash wraps its output
-       in a non-flex intermediate div */
-    min-height: calc(100vh - 110px);
+    min-height: 0;
 }
 
 /* ── Login page ───────────────────────────────────────────── */
@@ -659,25 +656,14 @@ a:hover {
     margin-top: 1px;
 }
 
-/* Dash embed area */
+/* Dash embed area — plotly_direct injects content directly,
+   no intermediate wrappers. The Dash root div controls its own height
+   via height:100vh in dash_app.py, so we only need flex:1 here. */
 .dash-embed {
     flex: 1;
     display: flex;
     flex-direction: column;
-    min-height: calc(100vh - 110px);
-}
-
-/* Force height propagation through ALL intermediate divs
-   that plotly_app_bootstrap inserts between .dash-embed and the Dash layout */
-.dash-embed > div,
-.dash-embed > div > div,
-.dash-embed > div > div > div {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    min-height: calc(100vh - 110px);
-    width: 100%;
-    border: none;
+    min-height: 0;
 }
 
 /* ── Utility ──────────────────────────────────────────────── */

@@ -8,20 +8,18 @@
     <title>SACER Ocupación de Bandas — Tablero SACER</title>
     <link rel="stylesheet" href="{% static 'css/outer.css' %}">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.10.0/dist/tabler-icons.min.css">
+    {% plotly_header %}
 </head>
 <body>
 
 <div class="module-shell">
 
-    <!-- Topbar -->
     <header class="topbar" role="banner">
         <a href="{% url 'index' %}" class="topbar-back" aria-label="Volver al Panel principal">
             <i class="ti ti-arrow-left" aria-hidden="true" style="font-size: 15px;"></i>
             Panel
         </a>
-
         <div class="topbar-sep" aria-hidden="true"></div>
-
         <nav aria-label="Ruta de navegación">
             <ol style="list-style:none; display:flex; align-items:center; gap:6px; margin:0; padding:0;">
                 <li><span class="topbar-section">Inicio</span></li>
@@ -29,9 +27,7 @@
                 <li><span style="font-size:13px; font-weight:600; color:#fff;">Ocupación de Bandas</span></li>
             </ol>
         </nav>
-
         <div class="topbar-spacer"></div>
-
         <div class="topbar-user">
             <div class="topbar-avatar" aria-hidden="true">
                 {{ request.user.first_name|first|upper }}{{ request.user.last_name|first|upper }}
@@ -40,27 +36,26 @@
         </div>
     </header>
 
-    <!-- Cabecera del módulo -->
     <div class="module-header-strip">
-        <div class="module-header-icon" style="background: #E6F1FB;" aria-hidden="true">
+        <div class="module-header-icon"
+             style="background: #E6F1FB; width:40px; height:40px; border-radius:8px; display:flex; align-items:center; justify-content:center;"
+             aria-hidden="true">
             <i class="ti ti-wave-square" style="font-size: 20px; color: #185FA5;"></i>
         </div>
         <div>
             <div class="module-header-title">SACER Ocupación de Bandas</div>
-            <div class="module-header-sub">
-                Análisis espectral &middot; Umbrales configurables &middot; Intermodulación
+            <div class="module-header-sub">Análisis espectral &middot; Umbrales configurables &middot; Intermodulación
             </div>
         </div>
     </div>
 
-    <!-- Contenido Dash -->
     <div class="module-body">
-        <div class="dash-embed">
-            {% plotly_app_bootstrap name="BandOccupationApp" %}
-        </div>
+        {% plotly_direct name="BandOccupationApp" %}
     </div>
 
 </div>
+
+{% plotly_footer %}
 
 <script>
     function checkSession() {

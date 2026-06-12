@@ -85,6 +85,7 @@ def define_app_layout():
                 end_date_placeholder_text="Fecha final",
                 minimum_nights=0,
                 display_format='DD/MM/YYYY',
+                with_portal=True,
                 style={'width': '100%', 'marginBottom': '12px'},
             ),
 
@@ -119,6 +120,7 @@ def define_app_layout():
             'overflowY': 'auto',
             'display': 'flex',
             'flexDirection': 'column',
+            'height': '100%',
         }),
 
         # ── Área principal ─────────────────────────────────────────────────────
@@ -151,8 +153,7 @@ def define_app_layout():
     ], style={
         'display': 'flex',
         'flexDirection': 'row',
-        'minHeight': '100%',
-        'height': 'auto',
+        'height': '100vh',
         'background': '#f0f2f5',
     })
 

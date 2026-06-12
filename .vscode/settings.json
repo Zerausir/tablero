@@ -1,4 +1,0 @@
-{
-    "CodeGPT.apiKey": "Ollama",
-    "CodeGPT.Autocomplete.provider": "Ollama - deepseek-coder:base"
-}

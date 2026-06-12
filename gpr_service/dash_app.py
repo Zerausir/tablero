@@ -91,6 +91,7 @@ app.layout = html.Div([
             date=date(2025, 1, 31),
             disabled_days=calculate_disabled_days_for_year(2025),
             display_format='DD/MM/YYYY',
+            with_portal=True,
             style={'width': '100%', 'marginBottom': '4px'},
         ),
 
@@ -163,6 +164,7 @@ app.layout = html.Div([
                     'fontSize': '13px',
                     'cursor': 'pointer',
                     'marginBottom': '12px',
+                    'height': '100%',
                 }),
                 dcc.Download(id='download-excel1'),
             ], id='download-container1', style={'display': 'none'}),
@@ -213,8 +215,7 @@ app.layout = html.Div([
 ], style={
     'display': 'flex',
     'flexDirection': 'row',
-    'minHeight': '100%',
-    'height': 'auto',
+    'height': '100vh',
     'background': '#f0f2f5',
 })
 
